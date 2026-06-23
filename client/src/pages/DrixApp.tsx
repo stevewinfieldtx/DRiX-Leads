@@ -105,6 +105,14 @@ export default function DrixApp() {
   const [voiceStatus, setVoiceStatus] = useState('Provisioning voice agent...')
   const [reportStatus, setReportStatus] = useState('')
 
+  // ─── REPORT EXPORT MODAL ───────────────────────────────────────────────────
+  const [reportModalOpen, setReportModalOpen] = useState(false)
+  const [reportFormat, setReportFormat] = useState<'pdf' | 'html' | 'docx'>('pdf')
+  const [reportSections, setReportSections] = useState<Record<string, boolean>>({
+    positioning: true, individual: true, pains: true, strategies: true,
+    questions: true, emails: true, clearsignals: true,
+  })
+
   // Refs for coach
   const coachHistoryRef = useRef<{ role: string; content: string }[]>([])
   const coachEndRef = useRef<HTMLDivElement>(null)
@@ -642,6 +650,22 @@ export default function DrixApp() {
     const recognized = data.scan?.recognized
     const confidence = data.scan?.confidence || ''
     const verification = data.verification
+
+    // Never show an embarrassing empty panel: if the scan came back thin
+    // (no atoms and no real content), hide the section entirely.
+    const hasSubstance =
+      atomCount > 0 ||
+      careerHighlights.length > 0 ||
+      publicSignals.length > 0 ||
+      painSignals.length > 0 ||
+      pitchAngles.length > 0 ||
+      vendorOpinions.length > 0 ||
+      data.scan?.recognized === true
+    if (!hasSubstance) {
+      setShowIndividual(false)
+      setIndividualHtml('')
+      return
+    }
 
     const listItems = (items: string[]) =>
       items
@@ -1747,25 +1771,53 @@ export default function DrixApp() {
   }
 
   // ─── DOWNLOAD REPORT ────────────────────────────────────────────────────
-  const downloadReport = async () => {
+  const openReportModal = () => {
     if (!appState.runId) {
       setReportStatus('No run to download yet — complete the demo first.')
       return
     }
-    setReportStatus('Building report...')
+    setReportStatus('')
+    setReportModalOpen(true)
+  }
+
+  const downloadBlob = async (url: string, filename: string) => {
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(`Server returned ${res.status}`)
+    const blob = await res.blob()
+    const objUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = objUrl
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(objUrl)
+  }
+
+  const runReportExport = async () => {
+    if (!appState.runId) { setReportStatus('No run to download yet.'); return }
+    const chosen = Object.entries(reportSections).filter(([, v]) => v).map(([k]) => k)
+    if (!chosen.length) { setReportStatus('Pick at least one section.'); return }
+    const id = encodeURIComponent(appState.runId)
+    const sectionsParam = encodeURIComponent(chosen.join(','))
     try {
-      const res = await fetch(`/api/report/${encodeURIComponent(appState.runId)}/doc`)
-      if (!res.ok) throw new Error(`Server returned ${res.status}`)
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `DRiX-Report-${appState.runId}.docx`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
+      if (reportFormat === 'pdf') {
+        // Open the styled report in a new tab; it auto-opens the print dialog
+        // so the user can "Save as PDF" — output matches the on-screen design.
+        window.open(`/api/report/${id}?sections=${sectionsParam}&print=1`, '_blank')
+        setReportStatus('Opened print view — choose "Save as PDF".')
+        setReportModalOpen(false)
+        return
+      }
+      if (reportFormat === 'html') {
+        setReportStatus('Building HTML...')
+        await downloadBlob(`/api/report/${id}?sections=${sectionsParam}`, `DRiX-Report-${appState.runId}.html`)
+      } else {
+        setReportStatus('Building Word...')
+        await downloadBlob(`/api/report/${id}/doc?sections=${sectionsParam}`, `DRiX-Report-${appState.runId}.docx`)
+      }
       setReportStatus('Downloaded.')
+      setReportModalOpen(false)
     } catch (e: any) {
       setReportStatus(e.message)
     }
@@ -2540,11 +2592,11 @@ export default function DrixApp() {
               <div className="mt-4 p-4 sm:p-5 rounded-xl bg-gradient-to-br from-drix-green/10 to-drix-accent/5 border border-drix-green/20">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div>
-                    <div className="text-sm font-extrabold text-drix-green tracking-tight">Save Full Report</div>
-                    <div className="text-xs text-drix-dim mt-1 max-w-md">Download a complete Word report with all atoms, pain points, strategies, and outreach.</div>
+                    <div className="text-sm font-extrabold text-drix-green tracking-tight">Save Report</div>
+                    <div className="text-xs text-drix-dim mt-1 max-w-md">Choose exactly what to include and export as a styled PDF, an HTML page, or Word.</div>
                   </div>
                   <button
-                    onClick={downloadReport}
+                    onClick={openReportModal}
                     className="px-5 py-2.5 rounded-lg text-xs font-bold bg-drix-green text-drix-bg hover:shadow-glow transition-all flex items-center gap-2 whitespace-nowrap"
                   >
                     <Download size={14} />
@@ -2561,6 +2613,82 @@ export default function DrixApp() {
           </motion.div>
         )}
       </div>
+
+      {/* ─── REPORT EXPORT MODAL ─── */}
+      {reportModalOpen && (
+        <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setReportModalOpen(false)}>
+          <div className="glass rounded-2xl border border-drix-border w-full max-w-lg p-6 sm:p-7 max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between mb-1">
+              <div className="text-base font-black text-drix-text tracking-tight">Build your report</div>
+              <button onClick={() => setReportModalOpen(false)} className="text-drix-dim hover:text-drix-text"><X size={18} /></button>
+            </div>
+            <p className="text-xs text-drix-dim mb-5">Pick what to include, then choose a format. PDF and HTML keep the on-screen styling.</p>
+
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-extrabold tracking-widest uppercase text-drix-muted">Sections</span>
+              <div className="flex gap-3 text-[11px] font-bold">
+                <button onClick={() => setReportSections(s => Object.fromEntries(Object.keys(s).map(k => [k, true])))} className="text-drix-accent hover:underline">All</button>
+                <button onClick={() => setReportSections(s => Object.fromEntries(Object.keys(s).map(k => [k, false])))} className="text-drix-dim hover:text-drix-text">None</button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5 mb-6">
+              {([
+                ['positioning', 'Positioning atoms (sender, solution, customer)'],
+                ['individual', 'Individual intelligence'],
+                ['pains', 'Pain points'],
+                ['strategies', 'Sales strategies'],
+                ['questions', 'Discovery questions'],
+                ['emails', 'Email drip campaign'],
+                ['clearsignals', 'ClearSignals analysis'],
+              ] as [string, string][]).map(([key, label]) => (
+                <label key={key} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-drix-surface2 border border-drix-border cursor-pointer hover:border-drix-accent/40 transition-all">
+                  <input
+                    type="checkbox"
+                    checked={!!reportSections[key]}
+                    onChange={() => setReportSections(s => ({ ...s, [key]: !s[key] }))}
+                    className="w-4 h-4 rounded accent-drix-green cursor-pointer"
+                  />
+                  <span className="text-sm text-drix-text">{label}</span>
+                </label>
+              ))}
+            </div>
+
+            <span className="text-[10px] font-extrabold tracking-widest uppercase text-drix-muted block mb-2">Format</span>
+            <div className="grid grid-cols-3 gap-2 mb-6">
+              {([
+                ['pdf', 'PDF', 'Styled, print-ready'],
+                ['html', 'HTML', 'Web page'],
+                ['docx', 'Word', '.docx'],
+              ] as [typeof reportFormat, string, string][]).map(([val, title, sub]) => (
+                <button
+                  key={val}
+                  onClick={() => setReportFormat(val)}
+                  className={`px-3 py-3 rounded-xl border text-center transition-all ${
+                    reportFormat === val
+                      ? 'border-drix-green/50 bg-drix-green/10'
+                      : 'border-drix-border text-drix-muted hover:text-drix-text hover:border-drix-accent/40'
+                  }`}
+                >
+                  <div className={`text-sm font-extrabold ${reportFormat === val ? 'text-drix-green' : ''}`}>{title}</div>
+                  <div className="text-[10px] text-drix-dim mt-0.5">{sub}</div>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <span className={`text-xs ${reportStatus === 'Downloaded.' ? 'text-drix-green' : reportStatus.includes('Pick') || reportStatus.includes('error') ? 'text-drix-red' : 'text-drix-dim'}`}>{reportStatus}</span>
+              <div className="flex gap-2">
+                <button onClick={() => setReportModalOpen(false)} className="px-4 py-2.5 rounded-lg text-xs font-bold border border-drix-border text-drix-dim hover:text-drix-text transition-all">Cancel</button>
+                <button onClick={runReportExport} className="px-5 py-2.5 rounded-lg text-xs font-bold bg-drix-green text-drix-bg hover:shadow-glow transition-all flex items-center gap-2 whitespace-nowrap">
+                  <Download size={14} />
+                  {reportFormat === 'pdf' ? 'Open PDF view' : reportFormat === 'html' ? 'Download HTML' : 'Download Word'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── STORM MODAL ─── */}
       {stormOpen && (

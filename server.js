@@ -386,7 +386,6 @@ async function apolloFindContact(domain, persona) {
   if (!cleanDomain) return null;
   try {
     const body = {
-      api_key: APOLLO_API_KEY,
       q_organization_domains: cleanDomain,
       per_page: 5,
       page: 1
@@ -394,7 +393,7 @@ async function apolloFindContact(domain, persona) {
     if (persona) body.person_titles = [persona];
     const res = await fetch('https://api.apollo.io/v1/mixed_people/search', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Api-Key': APOLLO_API_KEY },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(15000)
     });
@@ -2698,8 +2697,18 @@ function escHtml(s) {
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   }[c]));
 }
-function buildReportHtml(run) {
+// Parse a comma-separated ?sections= list into a Set. null => include everything.
+function reportSectionSet(raw) {
+  if (!raw) return null;
+  const set = new Set(String(raw).split(',').map(s => s.trim().toLowerCase()).filter(Boolean));
+  return set.size ? set : null;
+}
+
+function buildReportHtml(run, opts = {}) {
   const esc = escHtml;
+  const _sec = opts.sections instanceof Set ? opts.sections : null;
+  const want = (k) => !_sec || _sec.has(k);
+  const autoPrint = !!opts.print;
   const d = new Date(run.created_at || Date.now());
   const title = `DRiX Report ... ${esc(run.customer?.target?.name || run.industry || 'Customer')}`;
 
@@ -2900,20 +2909,27 @@ function buildReportHtml(run) {
     }
     .section { page-break-inside: avoid; }
     .strat, .pain-block { page-break-inside: avoid; }
+    .no-print { display: none !important; }
   }
+  .toolbar { position: sticky; top: 0; background: #0a0e13; padding: 8px 0 14px; margin-bottom: 8px; z-index: 5; }
+  .toolbar button { background: #5aa9ff; color: #0a0e13; font-weight: 800; font-size: 12px; border: none; border-radius: 8px; padding: 8px 16px; cursor: pointer; }
+  .toolbar button:hover { filter: brightness(1.08); }
 </style></head>
 <body>
+  <div class="toolbar no-print"><button onclick="window.print()">⤓ Save as PDF / Print</button></div>
+  ${autoPrint ? '<script>window.addEventListener("load",function(){setTimeout(function(){window.print();},400);});</script>' : ''}
   <h1>${esc(title)}</h1>
   <div class="meta">Run ${esc(run.run_id || '')} · Generated ${esc(d.toISOString())}${run.email ? ' · For ' + esc(run.email) : ''}</div>
 
+  ${want('positioning') ? `
   <div class="section">
     <h2>Positioning Context</h2>
     ${atomGroup('Sender',   run.sender)}
     ${atomGroup('Solution', run.solution)}
     ${atomGroup('Customer', run.customer)}
-  </div>
+  </div>` : ''}
 
-  ${run.individual ? `
+  ${run.individual && want('individual') ? `
   <div class="section">
     <h2>Individual Intelligence — ${esc(run.individual.target?.name || 'Target Individual')}</h2>
     <div class="group">
@@ -2931,29 +2947,30 @@ function buildReportHtml(run) {
     </div>
   </div>` : ''}
 
+  ${want('pains') ? `
   <div class="section">
     <h2>Pain Points</h2>
     ${painSection('Company-specific', run.pain_groups?.company_pain,     'company')}
     ${painSection('Sub-industry',     run.pain_groups?.subindustry_pain, 'subindustry')}
     ${painSection('Industry-wide',    run.pain_groups?.industry_pain,    'industry')}
-  </div>
+  </div>` : ''}
 
-  ${run.strategies?.strategies?.length ? `
+  ${run.strategies?.strategies?.length && want('strategies') ? `
   <div class="section">
     <h2>Sales Strategies (${run.strategies.strategies.length})</h2>
     ${run.strategies.strategies.map(stratCard).join('')}
   </div>` : ''}
 
-  ${run.hydration ? `
+  ${run.hydration && (want('questions') || want('emails')) ? `
   <div class="section">
     <h2>Lead Hydration${run.chosen_strategy ? ' — Strategy: ' + esc(run.chosen_strategy.title || '') : ''}</h2>
     ${h.whoIsThis     ? `<p><b>Who is this:</b> ${esc(h.whoIsThis)}</p>` : ''}
     ${h.primaryLead   ? `<p><b>Primary lead:</b> ${esc(h.primaryLead.title || '')} — ${esc(h.primaryLead.topic || '')}</p>` : ''}
-    ${questions.length ? `<h3>Discovery Questions (${questions.length})</h3>${questions.map(qCard).join('')}` : ''}
-    ${emails.length    ? `<h3>Email Drip Campaign (${emails.length} steps)</h3>${emails.map(emailCard).join('')}` : ''}
+    ${want('questions') && questions.length ? `<h3>Discovery Questions (${questions.length})</h3>${questions.map(qCard).join('')}` : ''}
+    ${want('emails') && emails.length    ? `<h3>Email Drip Campaign (${emails.length} steps)</h3>${emails.map(emailCard).join('')}` : ''}
   </div>` : ''}
 
-  ${csSection}
+  ${want('clearsignals') ? csSection : ''}
 
 </body></html>`;
 }
@@ -3033,7 +3050,10 @@ app.get('/api/report/:run_id', (req, res) => {
   const run = runStore.get(req.params.run_id);
   if (!run) return res.status(404).send('<h2 style="font-family:sans-serif;padding:40px">Run not found or expired</h2>');
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(buildReportHtml({ ...run, run_id: req.params.run_id }));
+  res.send(buildReportHtml(
+    { ...run, run_id: req.params.run_id },
+    { sections: reportSectionSet(req.query.sections), print: req.query.print === '1' }
+  ));
 });
 
 // ─── DOCX REPORT — proper Word document via docx-js ─────────────────────────
@@ -3047,6 +3067,9 @@ function loadDocx() {
 app.get('/api/report/:run_id/doc', async (req, res) => {
   const run = runStore.get(req.params.run_id);
   if (!run) return res.status(404).json({ error: 'Run not found or expired' });
+
+  const sec = reportSectionSet(req.query.sections);
+  const want = (k) => !sec || sec.has(k);
 
   try {
     const {
@@ -3104,43 +3127,47 @@ app.get('/api/report/:run_id/doc', async (req, res) => {
     );
 
     // ── Positioning Context ──
-    children.push(h1('Positioning Context'));
-    for (const [label, entry] of [['Sender', run.sender], ['Solution', run.solution], ['Customer', run.customer]]) {
-      if (!entry) continue;
-      children.push(h2(`${label} — ${entry.target?.name || ''}`));
-      if (entry.summary) children.push(p(entry.summary));
-      for (const a of (entry.atoms || [])) {
-        children.push(bold(`[${(a.type || '').replace(/_/g, ' ')}]  `, a.claim || ''));
-        if (a.evidence) children.push(p(`Evidence: ${a.evidence}`));
+    if (want('positioning')) {
+      children.push(h1('Positioning Context'));
+      for (const [label, entry] of [['Sender', run.sender], ['Solution', run.solution], ['Customer', run.customer]]) {
+        if (!entry) continue;
+        children.push(h2(`${label} — ${entry.target?.name || ''}`));
+        if (entry.summary) children.push(p(entry.summary));
+        for (const a of (entry.atoms || [])) {
+          children.push(bold(`[${(a.type || '').replace(/_/g, ' ')}]  `, a.claim || ''));
+          if (a.evidence) children.push(p(`Evidence: ${a.evidence}`));
+        }
+        children.push(spacer());
       }
-      children.push(spacer());
+      children.push(pageBreak());
     }
-    children.push(pageBreak());
 
     // ── Pain Points ──
     const pg = run.pain_groups || {};
-    children.push(h1('Pain Points'));
-    for (const [label, key] of [['Company-Specific', 'company_pain'], ['Sub-Industry', 'subindustry_pain'], ['Industry-Wide', 'industry_pain']]) {
-      const pains = pg[key] || [];
-      if (!pains.length) continue;
-      children.push(h2(`${label} (${pains.length})`));
-      for (const pp of pains) {
-        children.push(bold('', pp.title || ''));
-        if (pp.description) children.push(p(pp.description));
-        const tags = [
-          pp.persona && `Persona: ${pp.persona}`,
-          pp.urgency && `Urgency: ${pp.urgency}`,
-          pp.economic_lever && pp.economic_lever !== 'None' && `Lever: ${pp.economic_lever}`,
-          pp.inertia_force && pp.inertia_force !== 'None' && `Inertia: ${pp.inertia_force}`,
-        ].filter(Boolean);
-        if (tags.length) children.push(p(tags.join('  |  ')));
+    if (want('pains')) {
+      children.push(h1('Pain Points'));
+      for (const [label, key] of [['Company-Specific', 'company_pain'], ['Sub-Industry', 'subindustry_pain'], ['Industry-Wide', 'industry_pain']]) {
+        const pains = pg[key] || [];
+        if (!pains.length) continue;
+        children.push(h2(`${label} (${pains.length})`));
+        for (const pp of pains) {
+          children.push(bold('', pp.title || ''));
+          if (pp.description) children.push(p(pp.description));
+          const tags = [
+            pp.persona && `Persona: ${pp.persona}`,
+            pp.urgency && `Urgency: ${pp.urgency}`,
+            pp.economic_lever && pp.economic_lever !== 'None' && `Lever: ${pp.economic_lever}`,
+            pp.inertia_force && pp.inertia_force !== 'None' && `Inertia: ${pp.inertia_force}`,
+          ].filter(Boolean);
+          if (tags.length) children.push(p(tags.join('  |  ')));
+        }
       }
+      children.push(pageBreak());
     }
-    children.push(pageBreak());
 
     // ── Strategies ──
     const strats = run.strategies?.strategies || [];
-    if (strats.length) {
+    if (strats.length && want('strategies')) {
       children.push(h1(`Sales Strategies (${strats.length})`));
       for (const s of strats) {
         const chosen = run.chosen_strategy && run.chosen_strategy.id === s.id;
@@ -3160,14 +3187,14 @@ app.get('/api/report/:run_id/doc', async (req, res) => {
 
     // ── Hydration ──
     const hy = run.hydration || {};
-    if (run.hydration) {
+    if (run.hydration && (want('questions') || want('emails'))) {
       children.push(h1(`Lead Hydration${run.chosen_strategy ? ' — ' + (run.chosen_strategy.title || '') : ''}`));
       if (hy.whoIsThis) children.push(bold('Who is this:  ', hy.whoIsThis));
       if (hy.primaryLead) children.push(bold('Primary lead:  ', `${hy.primaryLead.title || ''} — ${hy.primaryLead.topic || ''}`));
       children.push(spacer());
 
       const questions = Array.isArray(hy.questions) ? hy.questions : [];
-      if (questions.length) {
+      if (questions.length && want('questions')) {
         children.push(h2(`Discovery Questions (${questions.length})`));
         for (const q of questions) {
           children.push(bold(`[${q.stage || 'Q'}]  `, q.question || ''));
@@ -3187,7 +3214,7 @@ app.get('/api/report/:run_id/doc', async (req, res) => {
       }
 
       const emails = hy.emailCampaign || hy.emailSequence || [];
-      if (emails.length) {
+      if (emails.length && want('emails')) {
         children.push(h2(`Email Drip Campaign (${emails.length} steps)`));
         for (const em of emails) {
           children.push(bold(em.label || `Email ${em.step || ''}`, em.sendDay ? `  —  ${em.sendDay}` : ''));
@@ -3201,7 +3228,7 @@ app.get('/api/report/:run_id/doc', async (req, res) => {
 
     // ── ClearSignals ──
     const cs = run.clearsignals_analysis || null;
-    if (cs) {
+    if (cs && want('clearsignals')) {
       children.push(h1('ClearSignals — Email Thread Analysis'));
       const health = cs.deal_health || {};
       children.push(bold('Deal Health:  ', `${health.score ?? '?'}/100 — ${health.label || ''}`));

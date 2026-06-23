@@ -89,10 +89,9 @@ async function apolloEnrichPerson(linkedinUrl, email) {
     return null;
   }
 
-  const payload = {
-    reveal_personal_emails: true,
-    reveal_phone_number: true,
-  };
+  // NOTE: reveal_personal_emails / reveal_phone_number cause a 400 on non-master
+  // keys. We omit them — the match still returns title, org, and cached email.
+  const payload = {};
   if (linkedinUrl) payload.linkedin_url = linkedinUrl;
   if (email) payload.email = email;
 
@@ -100,7 +99,7 @@ async function apolloEnrichPerson(linkedinUrl, email) {
     const response = await fetch('https://api.apollo.io/v1/people/match', {
       method: 'POST',
       headers: {
-        'Authorization': `Api-Key ${APOLLO_API_KEY}`,
+        'X-Api-Key': APOLLO_API_KEY,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
@@ -126,7 +125,7 @@ async function apolloEnrichCompany(domain) {
   try {
     const response = await fetch(`https://api.apollo.io/v1/organizations/enrich?domain=${encodeURIComponent(domain)}`, {
       headers: {
-        'Authorization': `Api-Key ${APOLLO_API_KEY}`,
+        'X-Api-Key': APOLLO_API_KEY,
         'Content-Type': 'application/json',
       },
       signal: AbortSignal.timeout(30000),
@@ -693,7 +692,7 @@ async function verifyPerson({ name, title, company_url }) {
     const response = await fetch('https://api.apollo.io/v1/mixed_people/search', {
       method: 'POST',
       headers: {
-        'Authorization': `Api-Key ${APOLLO_API_KEY}`,
+        'X-Api-Key': APOLLO_API_KEY,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -796,7 +795,7 @@ async function resolvePersonByTitle({ title, company_url }) {
     const response = await fetch('https://api.apollo.io/v1/mixed_people/search', {
       method: 'POST',
       headers: {
-        'Authorization': `Api-Key ${APOLLO_API_KEY}`,
+        'X-Api-Key': APOLLO_API_KEY,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
