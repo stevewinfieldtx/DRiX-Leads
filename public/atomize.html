@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atomization vs Chunking ... See the Difference</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --surface3: #222233;
+    --border: #2a2a3a;
+    --text: #e0e0e8;
+    --text-dim: #8888a0;
+    --muted: #55556a;
+    --accent: #6366f1;
+    --green: #22c55e;
+    --orange: #f59e0b;
+    --red: #ef4444;
+    --cyan: #06b6d4;
+    --purple: #a855f7;
+    --pink: #ec4899;
+    --blue: #3b82f6;
+    --yellow: #facc15;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .hero {
+    text-align: center;
+    padding: 40px 24px 28px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(99,102,241,0.06) 0%, transparent 100%);
+    position: relative;
+  }
+  .hero h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 8px; }
+  .hero h1 .chunk { color: var(--orange); }
+  .hero h1 .atom { color: var(--green); }
+  .hero .subtitle { color: var(--text-dim); font-size: 0.95rem; max-width: 700px; margin: 0 auto 20px; }
+  .nav-back {
+    position: absolute; top: 16px; left: 20px;
+    color: var(--text-dim); text-decoration: none; font-size: 0.82rem;
+  }
+  .nav-back:hover { color: var(--text); }
+
+  /* ── CONTROLS ── */
+  .controls {
+    display: flex; align-items: center; justify-content: center;
+    gap: 16px; flex-wrap: wrap; margin-top: 20px;
+  }
+  .pill-row { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+  .pill {
+    padding: 7px 16px; border-radius: 20px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text-dim); font-size: 0.82rem;
+    cursor: pointer; transition: all 0.2s; font-weight: 500;
+  }
+  .pill:hover { border-color: var(--accent); color: var(--text); }
+  .pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .start-btn {
+    padding: 10px 28px; border-radius: 8px; border: none; background: var(--accent);
+    color: #fff; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+  }
+  .start-btn:hover { background: #5558e6; transform: translateY(-1px); }
+  .start-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* ── SOURCE LEGEND ── */
+  .source-legend {
+    display: none; justify-content: center; gap: 16px; flex-wrap: wrap;
+    padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--surface);
+  }
+  .source-legend.visible { display: flex; }
+  .source-dot {
+    display: flex; align-items: center; gap: 6px; font-size: 0.72rem; color: var(--text-dim);
+  }
+  .source-dot .dot {
+    width: 10px; height: 10px; border-radius: 50%; display: inline-block;
+  }
+  .source-dot .src-label { font-weight: 600; }
+  .source-dot .src-count { font-size: 0.6rem; opacity: 0.6; }
+
+  /* ── SPLIT PANELS ── */
+  .split {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+    background: var(--border); min-height: 70vh;
+  }
+  .side { background: var(--bg); display: flex; flex-direction: column; }
+  .side-header {
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px; background: var(--surface);
+  }
+  .side-header .badge {
+    padding: 3px 10px; border-radius: 4px; font-size: 0.62rem;
+    text-transform: uppercase; letter-spacing: 1px; font-weight: 700;
+  }
+  .side.chunk-side .badge { background: rgba(245,158,11,0.12); color: var(--orange); }
+  .side.atom-side .badge { background: rgba(34,197,94,0.12); color: var(--green); }
+  .side-header h2 { font-size: 0.95rem; font-weight: 600; }
+  .side-header .side-tag { font-size: 0.72rem; color: var(--text-dim); margin-left: auto; }
+  .side-body { padding: 20px; flex: 1; overflow-y: auto; }
+  .atom-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 6px;
+  }
+
+  /* ── PHASE LABEL ── */
+  .phase-label {
+    text-align: center; padding: 10px; font-size: 0.72rem;
+    text-transform: uppercase; letter-spacing: 1.5px; font-weight: 700;
+    border-bottom: 1px solid var(--border); min-height: 38px;
+  }
+  .chunk-side .phase-label { color: var(--orange); background: rgba(245,158,11,0.05); }
+  .atom-side .phase-label { color: var(--green); background: rgba(34,197,94,0.05); }
+
+  /* ── SOUP (wall of text) ── */
+  .soup-block {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+    padding: 16px; margin-bottom: 12px; max-height: 300px; overflow-y: auto;
+    font-size: 0.72rem; line-height: 1.6; color: var(--text-dim);
+    font-family: 'Courier New', monospace; word-break: break-word;
+    opacity: 0; transition: opacity 0.6s;
+  }
+  .soup-block.visible { opacity: 1; }
+  .soup-label {
+    text-align: center; font-size: 0.6rem; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 1.5px; padding: 4px 0; margin-bottom: 4px;
+  }
+
+  /* ── CHUNKS ── */
+  .chunk-piece {
+    background: var(--surface2); border: 2px dashed var(--border); border-radius: 6px;
+    padding: 14px; margin-bottom: 8px; font-size: 0.8rem; line-height: 1.6;
+    opacity: 0; transform: scale(0.95); transition: all 0.4s ease-out; position: relative;
+  }
+  .chunk-piece.visible { opacity: 1; transform: scale(1); }
+  .chunk-piece .chunk-label {
+    position: absolute; top: 4px; right: 8px;
+    font-size: 0.55rem; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--orange); font-weight: 700; opacity: 0.6;
+  }
+  .chunk-seam {
+    text-align: center; font-size: 0.65rem; color: var(--red);
+    padding: 2px 0; opacity: 0; transition: opacity 0.3s;
+  }
+  .chunk-seam.visible { opacity: 1; }
+
+  /* ── ATOMS ── */
+  .atom-card {
+    display: flex; flex-direction: column;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-left: 3px solid var(--atom-color, var(--accent));
+    border-radius: 6px; padding: 8px 10px;
+    font-size: 0.7rem; line-height: 1.4;
+    opacity: 0; transform: scale(0.95); transition: all 0.35s ease-out;
+  }
+  .atom-card.visible { opacity: 1; transform: scale(1); }
+  .atom-card.connected {
+    border-color: var(--cyan); border-left-color: var(--cyan);
+    box-shadow: 0 0 8px rgba(6,182,212,0.2);
+  }
+  .atom-card .atom-top {
+    display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px;
+  }
+  .atom-card .atom-type-label {
+    font-size: 9px; letter-spacing: 1.3px; text-transform: uppercase;
+    color: var(--atom-color, var(--accent)); font-weight: 800;
+  }
+  .atom-card .atom-source-pill {
+    font-size: 7px; padding: 1px 6px; border-radius: 3px;
+    font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
+  }
+  .atom-card .atom-conf {
+    font-size: 9px; color: var(--text-dim); font-weight: 700;
+    letter-spacing: 1px; text-transform: uppercase;
+  }
+  .atom-card .atom-claim { font-size: 12px; color: var(--text); line-height: 1.4; margin-bottom: 6px; }
+
+  /* 9D grid (3x3) */
+  .d9 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; margin-top: 4px; }
+  .d9-cell {
+    background: rgba(255,255,255,0.03); border-radius: 3px; padding: 3px 5px;
+    font-size: 8px; line-height: 1.2; text-align: left; overflow: hidden; min-height: 32px;
+  }
+  .d9-cell-label { font-size: 7px; color: var(--text-dim); letter-spacing: 0.5px; text-transform: uppercase; font-weight: 700; }
+  .d9-cell-val { font-size: 9px; color: var(--text); font-weight: 600; margin-top: 1px; }
+  .d9-cell.d-persona     { border-left: 2px solid var(--accent); }
+  .d9-cell.d-stage       { border-left: 2px solid var(--cyan); }
+  .d9-cell.d-emotion     { border-left: 2px solid var(--pink); }
+  .d9-cell.d-evidence    { border-left: 2px solid var(--orange); }
+  .d9-cell.d-credibility { border-left: 2px solid var(--green); }
+  .d9-cell.d-recency     { border-left: 2px solid var(--yellow); }
+  .d9-cell.d-econ        { border-left: 2px solid var(--green); background: rgba(34,197,94,0.06); }
+  .d9-cell.d-inertia     { border-left: 2px solid var(--red); background: rgba(239,68,68,0.05); }
+  .d9-cell.d-industry    { border-left: 2px solid var(--purple); background: rgba(168,85,247,0.06); }
+  .d9-cell.d-industry .d9-cell-val { font-size: 8px; line-height: 1.25; }
+  .cred-bar { height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; margin-top: 3px; overflow: hidden; }
+  .cred-bar-fill { height: 100%; background: var(--green); border-radius: 2px; }
+
+  .atom-card.t-mission { --atom-color: var(--accent); }
+  .atom-card.t-product { --atom-color: var(--green); }
+  .atom-card.t-icp { --atom-color: var(--cyan); }
+  .atom-card.t-proof_point { --atom-color: var(--green); }
+  .atom-card.t-team { --atom-color: var(--purple); }
+  .atom-card.t-stack_signal { --atom-color: var(--orange); }
+  .atom-card.t-buying_trigger { --atom-color: var(--yellow); }
+  .atom-card.t-differentiator { --atom-color: var(--accent); }
+  .atom-card.t-partnership { --atom-color: var(--cyan); }
+  .atom-card.t-contact { --atom-color: var(--orange); }
+  .atom-card.t-weakness { --atom-color: var(--red); }
+  .atom-card.t-mission_gap { --atom-color: var(--pink); }
+
+  /* ── CONNECTIONS ── */
+  .connections-overlay { position: relative; text-align: center; padding: 8px; min-height: 30px; }
+  .connection-line {
+    display: inline-block; font-size: 0.6rem; color: var(--cyan);
+    padding: 2px 8px; margin: 2px;
+    background: rgba(6,182,212,0.08); border: 1px solid rgba(6,182,212,0.2);
+    border-radius: 4px; opacity: 0; transition: all 0.3s;
+  }
+  .connection-line.visible { opacity: 1; }
+
+  /* ── RECONSTRUCTION ── */
+  .recon-section { border-top: 2px solid var(--border); padding: 20px; }
+  .recon-label {
+    font-size: 0.62rem; text-transform: uppercase; letter-spacing: 1.5px;
+    font-weight: 700; margin-bottom: 10px;
+  }
+  .chunk-side .recon-label { color: var(--orange); }
+  .atom-side .recon-label { color: var(--green); }
+  .recon-text {
+    font-size: 0.85rem; line-height: 1.7;
+    opacity: 0; transition: opacity 0.6s;
+  }
+  .recon-text.visible { opacity: 1; }
+
+  /* Provenance highlights in DRiX output */
+  .prov {
+    padding: 2px 4px; border-left: 4px solid transparent; padding-left: 8px;
+    margin: 1px 0; display: inline; border-radius: 0 3px 3px 0;
+  }
+  .prov-legend {
+    display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; padding: 8px 12px;
+    font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1px; font-weight: 700;
+    background: var(--surface2); border-radius: 6px; border: 1px solid var(--border);
+  }
+  .prov-legend-item { display: flex; align-items: center; gap: 5px; color: var(--text-dim); }
+  .prov-legend-dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+
+  /* ── BLIND SPOTS ── */
+  .blind-spots {
+    border-top: 2px solid var(--border); padding: 28px 24px; display: none;
+    background: linear-gradient(180deg, rgba(239,68,68,0.04) 0%, transparent 100%);
+  }
+  .blind-spots.visible { display: block; }
+  .blind-spots-header {
+    text-align: center; margin-bottom: 16px;
+  }
+  .blind-spots-header h3 {
+    font-size: 1.1rem; font-weight: 700; color: var(--red); margin-bottom: 4px;
+  }
+  .blind-spots-header .bs-sub {
+    font-size: 0.78rem; color: var(--text-dim);
+  }
+  .blind-spots-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 8px; max-width: 1000px; margin: 0 auto;
+  }
+  .bs-card {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px 12px; font-size: 0.78rem; line-height: 1.4;
+    opacity: 0; transform: translateY(6px); transition: all 0.3s ease-out;
+  }
+  .bs-card.visible { opacity: 1; transform: translateY(0); }
+  .bs-card .bs-type {
+    font-size: 8px; text-transform: uppercase; letter-spacing: 1px; font-weight: 800; margin-bottom: 4px;
+  }
+  .bs-card .bs-claim { color: var(--text); }
+  .bs-card .bs-source {
+    font-size: 7px; margin-top: 6px; font-weight: 700; letter-spacing: 0.5px;
+    text-transform: uppercase; padding: 1px 6px; border-radius: 3px; display: inline-block;
+  }
+
+  /* ── TIMER ── */
+  .timer {
+    font-size: 0.65rem; color: var(--text-dim); text-align: center;
+    padding: 4px 0; font-variant-numeric: tabular-nums;
+  }
+
+  /* ── PROMPT DISPLAY ── */
+  .prompt-toggle {
+    display: none; align-items: center; gap: 6px; cursor: pointer;
+    font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase;
+    letter-spacing: 1px; font-weight: 700; padding: 6px 12px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 4px; margin-bottom: 8px; transition: all 0.2s;
+  }
+  .prompt-toggle:hover { border-color: var(--accent); color: var(--text); }
+  .prompt-toggle.visible { display: inline-flex; }
+  .prompt-toggle .arrow { transition: transform 0.2s; }
+  .prompt-toggle.open .arrow { transform: rotate(90deg); }
+  .prompt-box {
+    display: none; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 14px; margin-bottom: 12px;
+    font-family: 'Courier New', monospace; font-size: 0.68rem;
+    line-height: 1.5; color: var(--text-dim); white-space: pre-wrap;
+    word-break: break-word; max-height: 350px; overflow-y: auto;
+  }
+  .prompt-box.open { display: block; }
+  .chunk-side .prompt-toggle { color: var(--orange); }
+  .atom-side .prompt-toggle { color: var(--green); }
+
+  /* ── COMPARISON STATS ── */
+  .comparison-stats {
+    border-top: 2px solid var(--border); padding: 28px 24px;
+    background: linear-gradient(180deg, rgba(99,102,241,0.04) 0%, transparent 100%);
+  }
+  .comparison-stats-header {
+    text-align: center; margin-bottom: 16px;
+  }
+  .comparison-stats-header h3 {
+    font-size: 1.1rem; font-weight: 700; color: var(--accent);
+  }
+  .comparison-stats-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    max-width: 800px; margin: 0 auto;
+  }
+  .comp-stat-card {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px 20px; text-align: center;
+  }
+  .comp-stat-card.chunk-card { border-top: 3px solid var(--orange); }
+  .comp-stat-card.tde-card { border-top: 3px solid var(--green); }
+  .comp-stat-card .comp-label {
+    font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1.5px;
+    font-weight: 700; margin-bottom: 12px;
+  }
+  .chunk-card .comp-label { color: var(--orange); }
+  .tde-card .comp-label { color: var(--green); }
+  .comp-stat-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 0.78rem;
+  }
+  .comp-stat-row:last-child { border-bottom: none; }
+  .comp-stat-row .stat-name { color: var(--text-dim); }
+  .comp-stat-row .stat-val { font-weight: 700; font-size: 0.9rem; }
+  .chunk-card .stat-val { color: var(--orange); }
+  .chunk-card .stat-val.red-val { color: #ef4444; }
+  .tde-card .stat-val { color: var(--green); }
+  .tde-card .stat-val.green-val { color: var(--green); }
+  .comp-stat-note {
+    font-size: 0.68rem; color: var(--text-dim); margin-top: 10px;
+    font-style: italic;
+  }
+  .tde-card .comp-stat-note { color: var(--green); font-style: normal; font-weight: 600; }
+
+  .footer-note {
+    text-align: center; padding: 20px; font-size: 0.7rem;
+    color: var(--text-dim); border-top: 1px solid var(--border);
+  }
+
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+  .pulsing { animation: pulse 1s infinite; }
+
+  .placeholder {
+    text-align: center; color: var(--text-dim); font-size: 0.82rem; padding: 40px 20px;
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <a href="/comparison.html" class="nav-back">&larr; Back to Comparison</a>
+  <h1><span class="chunk">Chunking</span> vs <span class="atom">Atomization</span></h1>
+  <p class="subtitle">Same content. Four source documents. Two completely different ways to process them. Watch what happens when you reconstruct ... live.</p>
+  <div class="controls">
+    <div class="pill-row" id="companyPills">
+      <div class="pill active" data-name="AIAIVN">AIAIVN</div>
+      <div class="pill" data-name="Techcombank">Techcombank</div>
+      <div class="pill" data-name="FPT Software">FPT Software</div>
+    </div>
+    <button class="start-btn" id="startBtn" onclick="runAtomize()">Run Live Comparison</button>
+  </div>
+</div>
+
+<!-- ── SOURCE LEGEND ── -->
+<div class="source-legend" id="sourceLegend"></div>
+
+<!-- ── SPLIT VIEW ── -->
+<div class="split">
+  <!-- LEFT: CHUNKING -->
+  <div class="side chunk-side">
+    <div class="side-header">
+      <span class="badge">RAG</span>
+      <h2>Standard Chunking</h2>
+      <span class="side-tag">How ChatGPT processes documents</span>
+    </div>
+    <div class="phase-label" id="chunkPhase"></div>
+    <div class="timer" id="chunkTimer"></div>
+    <div class="side-body" id="chunkBody">
+      <div class="placeholder">Select a company and hit Run to see live chunking vs atomization.</div>
+    </div>
+    <div class="recon-section" id="chunkRecon" style="display:none;">
+      <div class="recon-label">Reconstructed Output (from chunks) ... best-effort source attribution</div>
+      <div class="prompt-toggle" id="chunkPromptToggle" onclick="togglePrompt('chunk')"><span class="arrow">&#9654;</span> Show the prompt this AI was given</div>
+      <div class="prompt-box" id="chunkPromptBox"></div>
+      <div id="chunkProvLegend" class="prov-legend"></div>
+      <div class="recon-text" id="chunkReconText"></div>
+      <div class="chunk-attribution-stats" id="chunkAttrStats" style="display:none; text-align:center; font-size:0.7rem; color:var(--red); padding:8px; margin-top:8px; background:rgba(239,68,68,0.06); border-radius:6px; border:1px solid rgba(239,68,68,0.15);"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: ATOMIZATION -->
+  <div class="side atom-side">
+    <div class="side-header">
+      <span class="badge">DRiX</span>
+      <h2>Targeted Decomposition</h2>
+      <span class="side-tag">How DRiX processes documents</span>
+    </div>
+    <div class="phase-label" id="atomPhase"></div>
+    <div class="timer" id="atomTimer"></div>
+    <div class="side-body" id="atomBody">
+      <div class="placeholder">Real decomposition into 9D-tagged atoms from multiple sources, cross-referenced with WinTech's knowledge base.</div>
+    </div>
+    <div class="recon-section" id="atomRecon" style="display:none;">
+      <div class="recon-label">Reconstructed Output (from atoms) ... with source provenance</div>
+      <div class="prompt-toggle" id="atomPromptToggle" onclick="togglePrompt('atom')"><span class="arrow">&#9654;</span> Show the prompt DRiX was given</div>
+      <div class="prompt-box" id="atomPromptBox"></div>
+      <div id="atomProvLegend" class="prov-legend"></div>
+      <div class="recon-text" id="atomReconText"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── BLIND SPOTS ── -->
+<div class="blind-spots" id="blindSpots">
+  <div class="blind-spots-header">
+    <h3>What the Chunks Missed</h3>
+    <div class="bs-sub" id="bsSub"></div>
+  </div>
+  <div class="blind-spots-grid" id="bsGrid"></div>
+</div>
+
+<!-- ── COMPARISON STATS ── -->
+<div class="comparison-stats" id="comparisonStats" style="display:none;">
+  <div class="comparison-stats-header">
+    <h3>Information Density Comparison</h3>
+  </div>
+  <div class="comparison-stats-grid" id="compStatsGrid"></div>
+</div>
+
+<div class="footer-note">
+  DRiX ... Data Reimagined Experience ... WinTech Partners &copy; 2026
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+// ── STATE ──
+let selectedName = 'AIAIVN';
+let isRunning = false;
+let startTime = 0;
+let timerInterval = null;
+let activeSources = []; // populated by sources_final event
+
+// ── PILL HANDLERS ──
+document.querySelectorAll('#companyPills .pill').forEach(p => {
+  p.addEventListener('click', () => {
+    if (isRunning) return;
+    document.querySelectorAll('#companyPills .pill').forEach(x => x.classList.remove('active'));
+    p.classList.add('active');
+    selectedName = p.dataset.name;
+  });
+});
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function stripMarkdown(s) {
+  return String(s)
+    .replace(/^#{1,6}\s+/gm, '')        // headers
+    .replace(/\*\*([^*]+)\*\*/g, '$1')   // bold
+    .replace(/\*([^*]+)\*/g, '$1')       // italic
+    .replace(/__([^_]+)__/g, '$1')       // bold alt
+    .replace(/_([^_]+)_/g, '$1')         // italic alt
+    .replace(/^[-*]\s+/gm, '')           // bullet points
+    .replace(/^\d+\.\s+/gm, '')          // numbered lists
+    .replace(/`([^`]+)`/g, '$1')         // inline code
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // links
+    .replace(/\n{3,}/g, '\n\n')          // excessive newlines
+    .trim();
+}
+
+function togglePrompt(side) {
+  const toggle = $(side + 'PromptToggle');
+  const box = $(side + 'PromptBox');
+  const isOpen = toggle.classList.contains('open');
+  toggle.classList.toggle('open');
+  box.classList.toggle('open');
+}
+
+function startTimer() {
+  startTime = Date.now();
+  timerInterval = setInterval(() => {
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    $('chunkTimer').textContent = elapsed + 's';
+    $('atomTimer').textContent = elapsed + 's';
+  }, 100);
+}
+
+function stopTimer() {
+  if (timerInterval) clearInterval(timerInterval);
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  $('chunkTimer').textContent = elapsed + 's total';
+  $('atomTimer').textContent = elapsed + 's total';
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function short9(s) { if (!s) return '—'; return String(s).length > 16 ? String(s).slice(0, 14) + '..' : String(s); }
+
+async function runAtomize() {
+  if (isRunning) return;
+  isRunning = true;
+  $('startBtn').disabled = true;
+  $('startBtn').textContent = 'Processing...';
+  activeSources = [];
+
+  // Reset
+  $('chunkBody').innerHTML = '';
+  $('atomBody').innerHTML = '';
+  $('chunkPhase').textContent = '';
+  $('atomPhase').textContent = '';
+  $('chunkPhase').classList.remove('pulsing');
+  $('atomPhase').classList.remove('pulsing');
+  $('chunkRecon').style.display = 'none';
+  $('atomRecon').style.display = 'none';
+  $('chunkReconText').classList.remove('visible');
+  $('atomReconText').classList.remove('visible');
+  $('sourceLegend').classList.remove('visible');
+  $('sourceLegend').innerHTML = '';
+  $('blindSpots').classList.remove('visible');
+  $('bsGrid').innerHTML = '';
+  $('chunkPromptToggle').classList.remove('visible', 'open');
+  $('atomPromptToggle').classList.remove('visible', 'open');
+  $('chunkPromptBox').classList.remove('open');
+  $('atomPromptBox').classList.remove('open');
+  $('chunkPromptBox').textContent = '';
+  $('atomPromptBox').textContent = '';
+  $('chunkProvLegend').innerHTML = '';
+  $('chunkAttrStats').style.display = 'none';
+  $('comparisonStats').style.display = 'none';
+  $('compStatsGrid').innerHTML = '';
+
+  startTimer();
+
+  try {
+    const response = await fetch('/api/atomize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company_name: selectedName })
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      let currentEvent = null;
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          currentEvent = line.slice(7).trim();
+        } else if (line.startsWith('data: ') && currentEvent) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            await handleEvent(currentEvent, data);
+          } catch {}
+          currentEvent = null;
+        } else if (line === '') {
+          currentEvent = null;
+        }
+      }
+    }
+  } catch (err) {
+    $('chunkBody').innerHTML = `<div class="placeholder" style="color:var(--red)">Error: ${escHtml(err.message)}</div>`;
+  }
+
+  stopTimer();
+  isRunning = false;
+  $('startBtn').disabled = false;
+  $('startBtn').textContent = 'Run Live Comparison';
+}
+
+async function handleEvent(event, data) {
+  switch (event) {
+    case 'sources':
+      // Initial source list (may be trimmed by sources_final)
+      break;
+
+    case 'sources_final':
+      activeSources = data.sources;
+      renderSourceLegend(data.sources);
+      break;
+
+    case 'phase':
+      handlePhase(data);
+      break;
+
+    case 'soup':
+      await renderSoup(data);
+      break;
+
+    case 'chunks':
+      await renderChunks(data.chunks);
+      break;
+
+    case 'atoms':
+      if (data.cached) {
+        $('atomPhase').textContent = `${data.total} atoms loaded from persistent knowledge base (instant)`;
+        $('atomPhase').classList.remove('pulsing');
+      }
+      await renderAtoms(data.atoms, data.by_source);
+      break;
+
+    case 'cross_refs':
+      await renderCrossRefs(data.refs);
+      break;
+
+    case 'prompts':
+      // Store prompts and show toggle buttons
+      $('chunkPromptBox').textContent = data.chunk_prompt;
+      $('atomPromptBox').textContent = data.atom_prompt;
+      $('chunkPromptToggle').classList.add('visible');
+      $('atomPromptToggle').classList.add('visible');
+      break;
+
+    case 'chunk_synthesis':
+      $('chunkPhase').textContent = 'Reconstruction complete';
+      $('chunkPhase').classList.remove('pulsing');
+      $('chunkRecon').style.display = 'block';
+      renderChunkProvenance(data);
+      await sleep(100);
+      $('chunkReconText').classList.add('visible');
+      break;
+
+    case 'atom_synthesis':
+      $('atomPhase').textContent = data.cached ? 'Loaded from persistent knowledge base' : 'Reconstruction complete';
+      $('atomPhase').classList.remove('pulsing');
+      $('atomRecon').style.display = 'block';
+      renderProvenance(data.text);
+      await sleep(100);
+      $('atomReconText').classList.add('visible');
+      break;
+
+    case 'blind_spots':
+      await renderBlindSpots(data);
+      break;
+
+    case 'comparison_stats':
+      renderComparisonStats(data);
+      break;
+
+    case 'error': {
+      const target = data.side === 'drix' ? 'atomBody' : 'chunkBody';
+      $(target).innerHTML = `<div class="placeholder" style="color:var(--red)">${escHtml(data.message)}</div>`;
+      break;
+    }
+
+    case 'done':
+      break;
+  }
+}
+
+function renderSourceLegend(sources) {
+  const legend = $('sourceLegend');
+  legend.innerHTML = sources.map(s =>
+    `<div class="source-dot">
+      <span class="dot" style="background:${s.color}"></span>
+      <span class="src-label">${escHtml(s.label)}</span>
+      <span class="src-count">${(s.chars / 1000).toFixed(1)}KB</span>
+    </div>`
+  ).join('');
+  legend.classList.add('visible');
+}
+
+function handlePhase(data) {
+  switch (data.step) {
+    case 'fetch':
+      $('chunkPhase').textContent = data.message;
+      $('chunkPhase').classList.add('pulsing');
+      $('atomPhase').textContent = data.message;
+      $('atomPhase').classList.add('pulsing');
+      break;
+    case 'soup':
+      $('chunkPhase').textContent = 'Building the soup ... all docs merged into one blob';
+      break;
+    case 'chunking':
+      $('chunkPhase').textContent = 'Splitting soup into arbitrary chunks...';
+      break;
+    case 'decompose':
+      $('atomPhase').textContent = data.message;
+      break;
+    case 'decompose_progress':
+      $('atomPhase').textContent = data.message;
+      break;
+    case 'cross_ref':
+      $('chunkPhase').textContent = 'Chunks have no cross-referencing capability';
+      $('chunkPhase').classList.remove('pulsing');
+      $('atomPhase').textContent = data.message;
+      break;
+    case 'synthesize':
+      $('chunkPhase').textContent = 'Reconstructing from chunks...';
+      $('chunkPhase').classList.add('pulsing');
+      $('atomPhase').textContent = 'Synthesizing from cross-referenced atoms...';
+      $('atomPhase').classList.add('pulsing');
+      break;
+  }
+}
+
+async function renderSoup(data) {
+  const body = $('chunkBody');
+  body.innerHTML = '';
+
+  const label = document.createElement('div');
+  label.className = 'soup-label';
+  label.textContent = `This is what the LLM sees: ${data.doc_count} documents, ${(data.total_chars / 1000).toFixed(1)}KB, zero structure`;
+  body.appendChild(label);
+
+  const soup = document.createElement('div');
+  soup.className = 'soup-block';
+  soup.textContent = data.text;
+  body.appendChild(soup);
+  await sleep(200);
+  soup.classList.add('visible');
+}
+
+async function renderChunks(chunks) {
+  const body = $('chunkBody');
+
+  // Add divider
+  const divLabel = document.createElement('div');
+  divLabel.className = 'soup-label';
+  divLabel.style.marginTop = '12px';
+  divLabel.textContent = 'Now split into arbitrary chunks with no source tracking';
+  body.appendChild(divLabel);
+
+  for (let i = 0; i < chunks.length; i++) {
+    const c = chunks[i];
+    const div = document.createElement('div');
+    div.className = 'chunk-piece';
+    div.innerHTML = `
+      <span class="chunk-label">Chunk ${i + 1} / ${chunks.length}</span>
+      ${escHtml(c.text)}
+    `;
+    body.appendChild(div);
+    await sleep(150);
+    div.classList.add('visible');
+
+    if (i < chunks.length - 1) {
+      const seam = document.createElement('div');
+      seam.className = 'chunk-seam';
+      seam.innerHTML = '&#9888; Seam ... context severed between chunks ' + (i + 1) + ' and ' + (i + 2);
+      body.appendChild(seam);
+      await sleep(80);
+      seam.classList.add('visible');
+    }
+  }
+
+  $('chunkPhase').textContent = `${chunks.length} chunks created. No source tracking, no relationships, no tags.`;
+  $('chunkPhase').classList.remove('pulsing');
+}
+
+async function renderAtoms(atoms, bySource) {
+  const body = $('atomBody');
+  body.innerHTML = '';
+
+  // Show source breakdown header
+  if (bySource && bySource.length > 0) {
+    const breakdown = document.createElement('div');
+    breakdown.className = 'soup-label';
+    breakdown.textContent = bySource.map(s => `${s.label}: ${s.count} atoms`).join(' | ');
+    body.appendChild(breakdown);
+  }
+
+  // Create grid container for compact card layout
+  const grid = document.createElement('div');
+  grid.className = 'atom-grid';
+  body.appendChild(grid);
+
+  for (let i = 0; i < atoms.length; i++) {
+    const a = atoms[i];
+    const typeClass = 't-' + (a.type || 'mission');
+    const cred = parseInt(a.d_credibility) || 3;
+    const credPct = (cred / 5 * 100);
+    const indVal = a.d_industry
+      ? (typeof a.d_industry === 'object' ? (a.d_industry.naics || 'N/A') : short9(a.d_industry))
+      : 'N/A';
+
+    // Source pill style
+    const srcColor = a.source_color || '#6366f1';
+    const srcPillStyle = `background: ${srcColor}22; color: ${srcColor}; border: 1px solid ${srcColor}44;`;
+
+    const div = document.createElement('div');
+    div.className = `atom-card ${typeClass}`;
+    div.id = `atom-${i}`;
+    // Override border-left color to source color
+    div.style.borderLeftColor = srcColor;
+    div.innerHTML = `
+      <div class="atom-top">
+        <span class="atom-type-label">${escHtml((a.type || '').replace(/_/g, ' '))}</span>
+        <span class="atom-source-pill" style="${srcPillStyle}">${escHtml(a.source_label || '')}</span>
+        <span class="atom-conf">${escHtml(a.confidence || '')}</span>
+      </div>
+      <div class="atom-claim">${escHtml(a.claim)}</div>
+      <div class="d9">
+        <div class="d9-cell d-persona"><div class="d9-cell-label">Persona</div><div class="d9-cell-val">${escHtml(short9(a.d_persona))}</div></div>
+        <div class="d9-cell d-stage"><div class="d9-cell-label">Stage</div><div class="d9-cell-val">${escHtml(short9(a.d_buying_stage))}</div></div>
+        <div class="d9-cell d-emotion"><div class="d9-cell-label">Emotion</div><div class="d9-cell-val">${escHtml(short9(a.d_emotional_driver))}</div></div>
+        <div class="d9-cell d-evidence"><div class="d9-cell-label">Evidence</div><div class="d9-cell-val">${escHtml(short9(a.d_evidence_type))}</div></div>
+        <div class="d9-cell d-credibility"><div class="d9-cell-label">Credibility</div><div class="d9-cell-val">${cred}/5</div><div class="cred-bar"><div class="cred-bar-fill" style="width:${credPct}%"></div></div></div>
+        <div class="d9-cell d-recency"><div class="d9-cell-label">Recency</div><div class="d9-cell-val">${escHtml(short9(a.d_recency))}</div></div>
+        <div class="d9-cell d-econ"><div class="d9-cell-label">Econ Pull</div><div class="d9-cell-val">${escHtml(short9(a.d_economic_driver))}</div></div>
+        <div class="d9-cell d-inertia"><div class="d9-cell-label">Inertia</div><div class="d9-cell-val">${escHtml(short9(a.d_status_quo_pressure))}</div></div>
+        <div class="d9-cell d-industry"><div class="d9-cell-label">Industry</div><div class="d9-cell-val">${escHtml(indVal)}</div></div>
+      </div>
+    `;
+    grid.appendChild(div);
+
+    await sleep(60);
+    div.classList.add('visible');
+  }
+
+  $('atomPhase').textContent = `${atoms.length} atoms extracted from ${bySource?.length || '?'} sources, each tagged across 9 dimensions`;
+  $('atomPhase').classList.remove('pulsing');
+}
+
+async function renderCrossRefs(refs) {
+  if (!refs || refs.length === 0) return;
+
+  const body = $('atomBody');
+  const overlay = document.createElement('div');
+  overlay.className = 'connections-overlay';
+  body.appendChild(overlay);
+
+  for (let i = 0; i < refs.length; i++) {
+    const r = refs[i];
+    const line = document.createElement('div');
+    line.className = 'connection-line';
+
+    const custClaim = r.customer_claim.length > 35 ? r.customer_claim.slice(0, 35) + '...' : r.customer_claim;
+    const sendClaim = r.sender_claim.length > 35 ? r.sender_claim.slice(0, 35) + '...' : r.sender_claim;
+    line.innerHTML = `<span style="color:${r.customer_color || '#06b6d4'}">${escHtml(custClaim)}</span> ↔ ${escHtml(sendClaim)}`;
+    overlay.appendChild(line);
+
+    await sleep(250);
+    line.classList.add('visible');
+  }
+
+  $('atomPhase').textContent = `${refs.length} cross-references found with WinTech atoms`;
+}
+
+function renderProvenance(rawText) {
+  // Build provenance legend
+  const legend = $('atomProvLegend');
+  const sourceMap = {};
+  activeSources.forEach(s => { sourceMap[s.index] = s; });
+
+  let legendHtml = '';
+  activeSources.forEach(s => {
+    legendHtml += `<div class="prov-legend-item"><span class="prov-legend-dot" style="background:${s.color}"></span>${escHtml(s.label)}</div>`;
+  });
+  legendHtml += `<div class="prov-legend-item"><span class="prov-legend-dot" style="background:#a855f7"></span>WinTech</div>`;
+  legend.innerHTML = legendHtml;
+
+  // Parse source markers: {{S0}}text{{/S0}}, {{WT}}text{{/WT}}
+  let html = escHtml(rawText);
+
+  // Replace source markers with colored spans
+  const colorMap = {};
+  activeSources.forEach(s => { colorMap[`S${s.index}`] = s.color; });
+  colorMap['WT'] = '#a855f7';
+
+  for (const [key, color] of Object.entries(colorMap)) {
+    // Build regex to match {{S0}}text{{/S0}} etc. Double-escape braces for RegExp constructor.
+    const regex = new RegExp(`\\{\\{${key}\\}\\}(.*?)\\{\\{\\/${key}\\}\\}`, 'gs');
+    html = html.replace(regex, `<span class="prov" style="border-left-color:${color}; background: ${color}30;">$1</span>`);
+  }
+
+  // Clean up any remaining unmatched markers
+  html = html.replace(/\{\{\/?(S\d|WT)\}\}/g, '');
+
+  $('atomReconText').innerHTML = html;
+}
+
+function renderComparisonStats(data) {
+  const section = $('comparisonStats');
+  const grid = $('compStatsGrid');
+
+  const c = data.chunk;
+  const t = data.tde;
+
+  grid.innerHTML = `
+    <div class="comp-stat-card chunk-card">
+      <div class="comp-label">Standard Chunking</div>
+      <div class="comp-stat-row"><span class="stat-name">Output</span><span class="stat-val">${c.words_generated} words, ${c.sentences} sentences</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Structured facts</span><span class="stat-val red-val">0</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Facts surfaced</span><span class="stat-val">${c.facts_surfaced} of ${c.facts_available} (${c.pct_coverage}%)</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Dimensions per fact</span><span class="stat-val red-val">0</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Sources tracked</span><span class="stat-val red-val">None</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Cross-references</span><span class="stat-val red-val">None</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Reusable for planning</span><span class="stat-val red-val">No</span></div>
+      <div class="comp-stat-note">${escHtml(c.label)}</div>
+    </div>
+    <div class="comp-stat-card tde-card">
+      <div class="comp-label">DRiX Targeted Decomposition</div>
+      <div class="comp-stat-row"><span class="stat-name">Output</span><span class="stat-val green-val">${t.words_generated || '—'} words, ${t.sentences || '—'} sentences</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Structured facts</span><span class="stat-val green-val">${t.structured_facts}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Facts surfaced</span><span class="stat-val green-val">${t.structured_facts} of ${t.structured_facts} (100%)</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Dimensions per fact</span><span class="stat-val green-val">${t.dimensions_per_fact}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Sources tracked</span><span class="stat-val green-val">${t.sources_tracked}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Cross-references</span><span class="stat-val green-val">${t.cross_references}</span></div>
+      <div class="comp-stat-row"><span class="stat-name">Reusable for planning</span><span class="stat-val green-val">Yes</span></div>
+      <div class="comp-stat-note">${escHtml(t.label)}</div>
+    </div>
+  `;
+
+  section.style.display = 'block';
+}
+
+function renderChunkProvenance(data) {
+  // Build legend (same sources as TDE side, plus "Unattributable")
+  const legend = $('chunkProvLegend');
+  let legendHtml = '';
+  activeSources.forEach(s => {
+    legendHtml += `<div class="prov-legend-item"><span class="prov-legend-dot" style="background:${s.color}"></span>${escHtml(s.label)}</div>`;
+  });
+  legendHtml += `<div class="prov-legend-item"><span class="prov-legend-dot" style="background:#555; opacity:0.4;"></span>Unattributable</div>`;
+  legend.innerHTML = legendHtml;
+
+  if (!data.sentences || data.sentences.length === 0) {
+    // Fallback: no sentence data, just show plain text
+    $('chunkReconText').innerHTML = escHtml(stripMarkdown(data.text));
+    return;
+  }
+
+  // Build color map from activeSources
+  const colorByIndex = {};
+  activeSources.forEach(s => { colorByIndex[s.index] = s.color; });
+
+  // Render each sentence with spotty coloring
+  let html = '';
+  for (const s of data.sentences) {
+    const clean = escHtml(stripMarkdown(s.text));
+    if (s.source_index >= 0 && colorByIndex[s.source_index]) {
+      const color = colorByIndex[s.source_index];
+      // Low confidence = more transparent, dashed border
+      const opacity = s.confidence > 60 ? '25' : '15';
+      const borderStyle = s.confidence > 60 ? 'solid' : 'dashed';
+      html += `<span class="prov" style="border-left-color:${color}; border-left-style:${borderStyle}; background:${color}${opacity};" title="~${s.confidence}% match to source">${clean}</span> `;
+    } else {
+      // Unattributable — grey, dim, no border
+      html += `<span style="opacity:0.55;" title="Cannot determine source">${clean}</span> `;
+    }
+  }
+
+  $('chunkReconText').innerHTML = html;
+
+  // Show attribution stats
+  if (data.attribution_stats) {
+    const stats = data.attribution_stats;
+    const statsEl = $('chunkAttrStats');
+    statsEl.innerHTML = `&#9888; Best-effort retroactive attribution: only ${stats.pct_attributed}% of sentences could be matched to a source document. ${stats.unattributed} of ${stats.total} sentences are unattributable. <strong>Chunks destroy source provenance.</strong>`;
+    statsEl.style.display = 'block';
+  }
+}
+
+async function renderBlindSpots(data) {
+  if (!data.spots || data.spots.length === 0) return;
+
+  const section = $('blindSpots');
+  $('bsSub').textContent = `${data.total_missed} of ${data.total_atoms} atomic facts (${data.pct_missed}%) were NOT represented in the chunk-based output`;
+
+  const grid = $('bsGrid');
+  grid.innerHTML = '';
+
+  for (let i = 0; i < data.spots.length; i++) {
+    const s = data.spots[i];
+    const card = document.createElement('div');
+    card.className = 'bs-card';
+    card.innerHTML = `
+      <div class="bs-type" style="color:${s.source_color || '#ef4444'}">${escHtml((s.type || '').replace(/_/g, ' '))}</div>
+      <div class="bs-claim">${escHtml(s.claim)}</div>
+      <div class="bs-source" style="background:${s.source_color}22; color:${s.source_color}; border: 1px solid ${s.source_color}44;">
+        ${escHtml(s.source_label || 'Unknown')}
+      </div>
+    `;
+    grid.appendChild(card);
+    await sleep(100);
+    card.classList.add('visible');
+  }
+
+  section.classList.add('visible');
+}
+</script>
+
+</body>
+</html>

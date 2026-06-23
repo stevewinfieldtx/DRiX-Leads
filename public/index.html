@@ -1,0 +1,2299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DRiX · Data Reimagined Experience · AI Sales Intelligence</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  :root {
+    --bg: #0a0e13; --surface: #121820; --surface-2: #1a222c; --surface-3: #222c38;
+    --text: #e8ecf2; --text-dim: #a8b2c0; --muted: #6b7685; --border: #2a3542;
+    --accent: #5aa9ff; --green: #3ddc84; --yellow: #ffc757; --red: #ff5a5a;
+    --purple: #b583ff; --orange: #ff9d5a; --pink: #ff67c3; --cyan: #5ad4ff;
+  }
+  body {
+    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+    padding: 20px 16px 60px; -webkit-font-smoothing: antialiased; line-height: 1.5;
+  }
+  .container { max-width: 1200px; margin: 0 auto; }
+
+  /* HEADER */
+  header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding-bottom: 18px; border-bottom: 1px solid var(--border);
+    margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-mark {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--purple) 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 14px; color: #0a0e13;
+  }
+  .brand-name { font-size: 18px; font-weight: 800; letter-spacing: -0.01em; }
+  .brand-sub { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); font-weight: 700; margin-top: 2px; }
+  .status {
+    display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim);
+    background: var(--surface); padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border);
+  }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .status-dot.warn { background: var(--yellow); box-shadow: 0 0 8px var(--yellow); }
+
+  /* HERO */
+  .live-demo {
+    background: linear-gradient(135deg, var(--surface) 0%, rgba(181,131,255,0.06) 50%, rgba(90,169,255,0.06) 100%);
+    border: 1px solid rgba(181,131,255,0.3);
+    border-radius: 16px; padding: 24px; margin-bottom: 24px; position: relative; overflow: hidden;
+  }
+  .live-demo::before { display: none; }
+  .live-demo h2 {
+    font-size: 20px; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 6px;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--purple) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .live-demo-sub { font-size: 13px; color: var(--text-dim); margin-bottom: 18px; }
+
+  /* INPUT GRIDS */
+  .input-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;
+  }
+  @media (max-width: 720px) { .input-grid { grid-template-columns: 1fr; } }
+  .input-wrap { display: flex; flex-direction: column; gap: 4px; }
+  .input-label {
+    font-size: 10px; letter-spacing: 1.3px; text-transform: uppercase;
+    color: var(--muted); font-weight: 800; padding-left: 2px;
+  }
+  .input-label .req { color: var(--red); margin-left: 2px; }
+  .field {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; color: var(--text); font-size: 14px; font-family: inherit; outline: none;
+    height: 42px;
+  }
+  select.field { cursor: pointer; appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%), linear-gradient(135deg, var(--text-dim) 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 32px; }
+  .field:focus { border-color: var(--accent); }
+  .field::placeholder { color: var(--muted); }
+  .field:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Section sub-header ("Who are you selling to?") */
+  .section-subheader {
+    font-size: 12px; letter-spacing: 1.8px; text-transform: uppercase;
+    color: var(--text-dim); font-weight: 800;
+    margin: 18px 0 10px; padding-top: 14px;
+    border-top: 1px dashed var(--border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-subheader::before { content: ''; width: 14px; height: 2px; background: var(--purple); border-radius: 2px; }
+
+  /* Target mode picker — two big, obvious cards */
+  .target-picker {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;
+  }
+  @media (max-width: 720px) { .target-picker { grid-template-columns: 1fr; } }
+  .target-pick-btn {
+    background: var(--surface-2); border: 1.5px solid var(--border); border-radius: 10px;
+    padding: 12px 16px; cursor: pointer; text-align: left;
+    font-family: inherit; transition: all 0.15s;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .target-pick-btn:hover { border-color: var(--accent); }
+  .target-pick-btn.active {
+    border-color: var(--accent); background: linear-gradient(135deg, var(--surface-2) 0%, rgba(90,169,255,0.08) 100%);
+  }
+  .target-pick-radio {
+    width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border);
+    flex-shrink: 0; position: relative; background: var(--surface);
+  }
+  .target-pick-btn.active .target-pick-radio { border-color: var(--accent); }
+  .target-pick-btn.active .target-pick-radio::after {
+    content: ''; position: absolute; inset: 2px; border-radius: 50%; background: var(--accent);
+  }
+  .target-pick-body { flex: 1; min-width: 0; }
+  .target-pick-title { font-size: 13px; font-weight: 800; color: var(--text); letter-spacing: 0.2px; }
+  .target-pick-sub   { font-size: 11px; color: var(--text-dim); margin-top: 2px; line-height: 1.4; }
+
+  /* Subtext for inputs (under labels) */
+  .input-help {
+    font-size: 11px; color: var(--text-dim); font-weight: 500;
+    margin-top: -2px; margin-bottom: 2px; padding-left: 2px;
+    letter-spacing: 0; text-transform: none;
+  }
+
+  .industry-grid {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px;
+  }
+  @media (max-width: 720px) { .industry-grid { grid-template-columns: 1fr; } }
+
+  .run-row { display: flex; justify-content: flex-end; margin-top: 8px; }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--purple) 100%);
+    color: white; border: none; border-radius: 10px; padding: 12px 28px;
+    font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit;
+    transition: all 0.15s; white-space: nowrap;
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(90,169,255,0.3); }
+  .btn-primary:disabled { background: var(--surface-3); color: var(--text-dim); cursor: not-allowed; transform: none; box-shadow: none; border: 1px solid var(--border); }
+  .btn-secondary {
+    background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+    padding: 8px 16px; font-size: 12px; font-weight: 700; border-radius: 8px; cursor: pointer;
+    font-family: inherit; transition: all 0.15s;
+  }
+  .btn-secondary:hover { color: var(--text); border-color: var(--accent); }
+  .btn-success {
+    background: linear-gradient(135deg, var(--green) 0%, var(--accent) 100%);
+    color: #0a0e13; border: none; border-radius: 10px; padding: 10px 20px;
+    font-size: 13px; font-weight: 800; cursor: pointer; font-family: inherit;
+    transition: all 0.15s; letter-spacing: 0.3px;
+  }
+  .btn-success:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(61,220,132,0.35); }
+  .btn-success:disabled { background: var(--surface-3); color: var(--text-dim); cursor: not-allowed; transform: none; box-shadow: none; border: 1px solid var(--border); }
+
+  /* MODE SWITCH */
+  .mode-switch-wrap {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 16px;
+    padding: 10px 14px; background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .mode-label { font-size: 11px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: var(--green); }
+  .mode-label-dim { color: var(--muted); }
+  .mode-hint { font-size: 11px; color: var(--text-dim); margin-left: 8px; }
+  .mode-switch { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+  .mode-switch input { opacity: 0; width: 0; height: 0; }
+  .mode-slider {
+    position: absolute; inset: 0; background: var(--green); border-radius: 22px;
+    cursor: pointer; transition: background 0.2s;
+  }
+  .mode-slider::before {
+    content: ''; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px;
+    background: white; border-radius: 50%; transition: transform 0.2s;
+  }
+  .mode-switch input:checked + .mode-slider { background: var(--yellow); }
+  .mode-switch input:checked + .mode-slider::before { transform: translateX(18px); }
+
+  /* DEMO-SCALE DISCLAIMER */
+  .demo-scale-note {
+    margin-top: 14px; padding: 10px 14px;
+    background: rgba(255,199,87,0.08); border: 1px solid rgba(255,199,87,0.25);
+    border-radius: 8px; font-size: 11px; color: var(--text-dim);
+    line-height: 1.55; display: flex; gap: 8px; align-items: flex-start;
+  }
+  .demo-scale-note strong { color: var(--yellow); letter-spacing: 0.3px; }
+  .demo-scale-note-icon { font-size: 12px; color: var(--yellow); font-weight: 900; flex-shrink: 0; line-height: 1.3; }
+
+  /* PHASE TIMELINE */
+  .phases { margin-top: 20px; display: none; }
+  .phases.active { display: block; }
+  .phase-item {
+    display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+    margin-bottom: 6px; font-size: 13px; transition: all 0.2s;
+  }
+  .phase-item.running { border-color: var(--accent); background: rgba(90,169,255,0.08); }
+  .phase-item.done { opacity: 0.7; }
+  .phase-item.error { border-color: var(--red); background: rgba(255,90,90,0.08); }
+  .phase-icon {
+    width: 22px; height: 22px; border-radius: 50%; background: var(--surface-3);
+    display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0;
+  }
+  .phase-item.running .phase-icon { background: var(--accent); color: white; animation: pulse 1.5s ease-in-out infinite; }
+  .phase-item.done .phase-icon { background: var(--green); color: white; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .phase-text { flex: 1; color: var(--text); }
+  .phase-item.done .phase-text { color: var(--text-dim); }
+
+  /* SECTION TITLES */
+  .section-title {
+    font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--muted); font-weight: 800;
+    margin: 24px 0 12px; display: flex; align-items: center; gap: 8px;
+  }
+  .section-title::before { content: ''; width: 14px; height: 2px; background: var(--accent); border-radius: 2px; }
+
+  /* PANELS */
+  .panel {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 20px 22px; margin-bottom: 20px; display: none;
+  }
+  .panel.active { display: block; }
+
+  /* ATOMS (three columns for sender/solution/customer) */
+  .atoms-triple {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;
+  }
+  @media (max-width: 960px) { .atoms-triple { grid-template-columns: 1fr; } }
+  .atom-group { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 14px 10px; }
+  .atom-group-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 8px; gap: 8px;
+  }
+  .atom-group-title { font-size: 12px; font-weight: 800; letter-spacing: 0.3px; color: var(--text); }
+  .atom-group-role {
+    font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 800;
+    padding: 2px 8px; border-radius: 10px;
+  }
+  .atom-group-role.sender   { background: rgba(90,169,255,0.15);  color: var(--accent); }
+  .atom-group-role.solution { background: rgba(61,220,132,0.15);  color: var(--green); }
+  .atom-group-role.customer { background: rgba(181,131,255,0.15); color: var(--purple); }
+  .atom-group-summary { font-size: 11px; color: var(--text-dim); margin-bottom: 10px; font-style: italic; line-height: 1.5; }
+  .atom-count-badge { font-size: 10px; color: var(--muted); font-weight: 700; letter-spacing: 1.5px; }
+  .atom-group-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+  .atom-source { font-size: 9px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; padding: 2px 7px; border-radius: 8px; }
+  .atom-source.src-tde   { background: rgba(181,131,255,0.14); color: var(--purple); border: 1px solid rgba(181,131,255,0.35); }
+  .atom-source.src-fresh { background: rgba(90,212,255,0.10);  color: var(--cyan);   border: 1px solid rgba(90,212,255,0.30); }
+
+  .atoms-list { display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow-y: auto; padding-right: 2px; }
+  .atoms-accordion { display: flex; flex-direction: column; gap: 4px; }
+  .atom-type-group { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .atom-type-header {
+    display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer;
+    background: var(--surface-3); transition: background 0.15s; user-select: none;
+  }
+  .atom-type-header:hover { background: rgba(90,169,255,0.08); }
+  .atom-type-arrow { font-size: 9px; color: var(--muted); transition: transform 0.15s; width: 12px; }
+  .atom-type-arrow.open { color: var(--accent); }
+  .atom-type-label { font-size: 11px; font-weight: 800; text-transform: capitalize; color: var(--text); letter-spacing: 0.3px; flex: 1; }
+  .atom-type-count {
+    font-size: 9px; font-weight: 800; padding: 2px 7px; border-radius: 10px;
+    background: rgba(90,169,255,0.12); color: var(--accent); letter-spacing: 0.5px;
+  }
+  .atom-type-body { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; max-height: 500px; overflow-y: auto; }
+  .atom-mini {
+    background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--atom-color);
+    border-radius: 6px; padding: 8px 10px;
+  }
+  .atom-mini-top { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+  .atom-mini-type { font-size: 9px; letter-spacing: 1.3px; text-transform: uppercase; color: var(--atom-color); font-weight: 800; }
+  .atom-mini-conf { font-size: 9px; color: var(--muted); font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+  .atom-mini-claim { font-size: 12px; color: var(--text); line-height: 1.4; margin-bottom: 6px; }
+
+  /* 9D Heatmap (3x3 grid) */
+  .d9 {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px;
+    margin-top: 4px;
+  }
+  .d9-cell {
+    background: var(--surface-3); border-radius: 3px; padding: 3px 5px;
+    font-size: 8px; line-height: 1.2; text-align: left; position: relative; overflow: hidden;
+    min-height: 32px;
+  }
+  .d9-cell-label { font-size: 7px; color: var(--muted); letter-spacing: 0.5px; text-transform: uppercase; font-weight: 700; }
+  .d9-cell-val { font-size: 9px; color: var(--text); font-weight: 600; margin-top: 1px; }
+  .d9-cell.persona       { border-left: 2px solid var(--accent); }
+  .d9-cell.stage         { border-left: 2px solid var(--cyan); }
+  .d9-cell.driver        { border-left: 2px solid var(--pink); }
+  .d9-cell.evidence      { border-left: 2px solid var(--orange); }
+  .d9-cell.credibility   { border-left: 2px solid var(--green); }
+  .d9-cell.recency       { border-left: 2px solid var(--yellow); }
+  .d9-cell.econ          { border-left: 2px solid var(--green); background: rgba(61,220,132,0.06); }
+  .d9-cell.sqp           { border-left: 2px solid var(--red); background: rgba(255,90,90,0.05); }
+  .d9-cell.industry      { border-left: 2px solid var(--purple); background: rgba(181,131,255,0.06); }
+  .d9-cell.industry .d9-cell-val { font-size: 8px; line-height: 1.25; }
+  .cred-bar { height: 3px; background: var(--surface); border-radius: 2px; margin-top: 3px; overflow: hidden; }
+  .cred-bar-fill { height: 100%; background: var(--green); border-radius: 2px; }
+
+  .atom-mini.mission { --atom-color: var(--accent); }
+  .atom-mini.product { --atom-color: var(--green); }
+  .atom-mini.icp { --atom-color: var(--cyan); }
+  .atom-mini.proof_point { --atom-color: var(--green); }
+  .atom-mini.team { --atom-color: var(--purple); }
+  .atom-mini.stack_signal { --atom-color: var(--orange); }
+  .atom-mini.buying_trigger { --atom-color: var(--yellow); }
+  .atom-mini.differentiator { --atom-color: var(--accent); }
+  .atom-mini.partnership { --atom-color: var(--cyan); }
+  .atom-mini.contact { --atom-color: var(--orange); }
+  .atom-mini.weakness { --atom-color: var(--red); }
+  .atom-mini.mission_gap { --atom-color: var(--pink); }
+
+  /* PAIN POINTS */
+  .pain-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 10px;
+  }
+  .pain-card {
+    background: rgba(255,90,90,0.04); border: 1px solid rgba(255,90,90,0.3);
+    border-left: 3px solid var(--red); border-radius: 8px; padding: 12px 14px;
+  }
+  .pain-card.mission_gap   { border-left-color: var(--pink); background: rgba(255,103,195,0.04); border-color: rgba(255,103,195,0.3); }
+  .pain-card.buying_trigger { border-left-color: var(--yellow); background: rgba(255,199,87,0.04); border-color: rgba(255,199,87,0.3); }
+  .pain-card-company     { border-left-color: var(--red);    background: rgba(255,90,90,0.05);  border-color: rgba(255,90,90,0.3); }
+  .pain-card-subindustry { border-left-color: var(--orange); background: rgba(255,157,90,0.05); border-color: rgba(255,157,90,0.3); }
+  .pain-card-industry    { border-left-color: var(--cyan);   background: rgba(90,212,255,0.04); border-color: rgba(90,212,255,0.3); }
+  .pain-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+  .pain-desc  { font-size: 11px; color: var(--text-dim); line-height: 1.5; margin-bottom: 6px; }
+  .pain-evidence { font-size: 10px; color: var(--muted); font-style: italic; margin-bottom: 6px; line-height: 1.4; border-left: 2px solid var(--border); padding-left: 6px; }
+  .pain-meta  { display: flex; gap: 6px; flex-wrap: wrap; font-size: 9px; }
+  .pain-chip  { background: var(--surface-2); color: var(--text-dim); padding: 2px 6px; border-radius: 8px; font-weight: 600; letter-spacing: 0.5px; }
+  .pain-chip.urgency-high   { background: rgba(255,90,90,0.15);  color: var(--red); }
+  .pain-chip.urgency-medium { background: rgba(255,199,87,0.15); color: var(--yellow); }
+  .pain-chip.urgency-low    { background: rgba(61,220,132,0.12); color: var(--green); }
+  .pain-personas { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .pain-persona-card { flex: 1; min-width: 140px; background: var(--surface-2); border-radius: 6px; padding: 6px 8px; border-left: 2px solid var(--accent); }
+  .pain-persona-card.secondary { border-left-color: var(--muted); }
+  .pain-persona-card.secondary .pain-persona-rationale { color: var(--muted); }
+  .pain-persona-label { font-size: 8px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); font-weight: 700; margin-bottom: 2px; }
+  .pain-persona-title { font-size: 11px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+  .pain-persona-rationale { font-size: 10px; color: var(--accent); font-weight: 600; line-height: 1.4; margin-bottom: 2px; }
+  .pain-persona-perspective { font-size: 10px; color: var(--text-dim); line-height: 1.4; font-style: italic; }
+  .pain-section { margin-bottom: 16px; }
+  .pain-section:last-child { margin-bottom: 0; }
+  .pain-section-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .pain-section-label { font-size: 10px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; }
+  .pain-section-count {
+    font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px;
+    background: var(--surface-2); color: var(--text-dim);
+  }
+  .pain-section-company     .pain-section-label { color: var(--red); }
+  .pain-section-subindustry .pain-section-label { color: var(--orange); }
+  .pain-section-industry    .pain-section-label { color: var(--cyan); }
+
+  /* STRATEGIES */
+  .strat-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
+  .strat-header-info { font-size: 12px; color: var(--text-dim); }
+  .strat-list { display: flex; flex-direction: column; gap: 12px; }
+  .strat-card {
+    background: var(--surface-2); border: 2px solid var(--border); border-radius: 12px;
+    padding: 16px 18px; position: relative; cursor: pointer; transition: all 0.15s;
+  }
+  .strat-card:hover { border-color: var(--accent); }
+  .strat-card.selected { border-color: var(--green); background: linear-gradient(135deg, var(--surface-2) 0%, rgba(61,220,132,0.06) 100%); }
+  .strat-card.top-pick::before {
+    content: 'TOP PICK'; position: absolute; top: 12px; right: 14px;
+    font-size: 9px; letter-spacing: 1.5px; font-weight: 800; color: var(--yellow);
+    background: rgba(255,199,87,0.15); padding: 3px 8px; border-radius: 10px;
+  }
+  .strat-head { display: flex; gap: 10px; margin-bottom: 10px; padding-right: 80px; align-items: flex-start; }
+  .strat-check {
+    width: 22px; height: 22px; border: 2px solid var(--border); border-radius: 6px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    transition: all 0.15s; background: var(--surface); margin-top: 2px;
+  }
+  .strat-card.selected .strat-check { border-color: var(--green); background: var(--green); color: #0a0e13; font-weight: 900; }
+  .strat-check::after { content: ''; }
+  .strat-card.selected .strat-check::after { content: '✓'; color: #0a0e13; font-weight: 900; font-size: 14px; }
+  .strat-title { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.3; }
+  .strat-explain { font-size: 13px; color: var(--text-dim); line-height: 1.55; margin-bottom: 10px; }
+  .strat-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin-bottom: 10px; }
+  .strat-cell { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }
+  .strat-cell-label { font-size: 8px; letter-spacing: 1.3px; text-transform: uppercase; color: var(--muted); font-weight: 800; margin-bottom: 3px; }
+  .strat-cell-val { font-size: 11px; color: var(--text); line-height: 1.4; }
+  .strat-footer { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding-top: 10px; border-top: 1px dashed var(--border); }
+  .strat-persona {
+    font-size: 10px; background: rgba(90,169,255,0.1); color: var(--accent);
+    padding: 2px 8px; border-radius: 10px; font-weight: 700; letter-spacing: 0.3px;
+  }
+  .strat-confidence {
+    font-size: 10px; color: var(--text-dim); font-weight: 700; letter-spacing: 0.5px;
+  }
+
+  /* Persona × Pain anchor chip — the composite key retrieval driver */
+  .strat-anchor {
+    display: inline-flex; align-items: center; gap: 0;
+    font-size: 11px; font-weight: 800; letter-spacing: 0.3px;
+    margin-bottom: 10px; padding: 0;
+    border: 1px solid var(--border); border-radius: 14px;
+    overflow: hidden; max-width: 100%;
+  }
+  .strat-anchor-persona {
+    background: rgba(90,169,255,0.15); color: var(--accent);
+    padding: 4px 10px;
+  }
+  .strat-anchor-x {
+    background: var(--surface-3); color: var(--muted);
+    padding: 4px 6px; font-size: 10px;
+  }
+  .strat-anchor-pain {
+    background: rgba(255,90,90,0.12); color: #ff9a9a;
+    padding: 4px 10px;
+  }
+  /* Force chip — economic_pull / counter_inertia / balanced */
+  .strat-force {
+    display: inline-block;
+    font-size: 9px; font-weight: 800; letter-spacing: 1.3px; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 10px; margin-left: 6px;
+    vertical-align: middle;
+  }
+  .strat-force.economic_pull { background: rgba(61,220,132,0.12); color: var(--green); }
+  .strat-force.counter_inertia { background: rgba(255,103,195,0.12); color: var(--pink); }
+  .strat-force.balanced { background: rgba(90,169,255,0.12); color: var(--accent); }
+  .strat-conf-bar { display: inline-block; width: 60px; height: 4px; background: var(--surface-3); border-radius: 2px; margin-left: 6px; vertical-align: middle; }
+  .strat-conf-fill { display: block; height: 100%; background: var(--green); border-radius: 2px; }
+
+  .strat-custom-card {
+    background: var(--surface); border: 2px dashed var(--border); border-radius: 12px;
+    padding: 14px 16px; text-align: center;
+  }
+  .strat-custom-btn {
+    background: transparent; border: none; color: var(--accent);
+    font-weight: 700; cursor: pointer; font-size: 13px; font-family: inherit;
+    padding: 4px 8px;
+  }
+  .strat-custom-btn:hover { text-decoration: underline; }
+  .strat-custom-form { display: none; text-align: left; }
+  .strat-custom-form.active { display: block; }
+  .strat-custom-form input, .strat-custom-form textarea {
+    width: 100%; margin-bottom: 8px;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px;
+    padding: 8px 10px; color: var(--text); font-size: 13px; font-family: inherit;
+  }
+  .strat-custom-form textarea { resize: vertical; min-height: 60px; }
+
+  /* Action row under strategies */
+  .strat-actions {
+    margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .strat-action-info { font-size: 13px; color: var(--text); font-weight: 600; }
+  .strat-action-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* MODAL */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(5, 8, 12, 0.75); z-index: 1000;
+    display: none; align-items: center; justify-content: center; padding: 20px;
+    backdrop-filter: blur(4px);
+  }
+  .modal-backdrop.active { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 26px 28px; max-width: 540px; width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  }
+  .modal h3 {
+    font-size: 18px; font-weight: 800; margin-bottom: 10px;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--purple) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .modal p { font-size: 13px; color: var(--text-dim); line-height: 1.6; margin-bottom: 10px; }
+  .modal .note {
+    background: rgba(255,199,87,0.08); border-left: 3px solid var(--yellow);
+    padding: 10px 14px; border-radius: 6px; font-size: 12px; color: var(--text); line-height: 1.55;
+    margin-top: 14px;
+  }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+
+  /* HYDRATION */
+  .hyd-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .hyd-who { flex: 1; min-width: 240px; }
+  .hyd-whoisthis { font-size: 13px; color: var(--text-dim); line-height: 1.55; }
+  .hyd-score {
+    border: 2px solid var(--accent); border-radius: 10px; padding: 8px 16px;
+    text-align: center; min-width: 80px;
+  }
+  .hyd-score-num { font-size: 24px; font-weight: 900; line-height: 1; }
+  .hyd-score-label { font-size: 9px; letter-spacing: 1.5px; color: var(--muted); font-weight: 800; margin-top: 3px; }
+  .hyd-pains { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-bottom: 16px; }
+  .hyd-pain { background: rgba(255,90,90,0.04); border: 1px solid rgba(255,90,90,0.3); border-radius: 8px; padding: 10px 12px; }
+  .hyd-pain-label { font-size: 12px; font-weight: 700; color: var(--red); margin-bottom: 4px; }
+  .hyd-pain-expl { font-size: 11px; color: var(--text-dim); line-height: 1.5; }
+  .hyd-primary-lead {
+    background: var(--surface-2); border-left: 3px solid var(--accent);
+    padding: 10px 14px; border-radius: 6px; margin-bottom: 16px;
+  }
+  .hyd-primary-lead-title { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); font-weight: 800; margin-bottom: 4px; }
+  .hyd-primary-lead-val { font-size: 14px; color: var(--text); font-weight: 700; }
+
+  .hyd-questions-title {
+    font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted);
+    font-weight: 800; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+  }
+  .hyd-questions-title::before { content: ''; width: 14px; height: 2px; background: var(--green); border-radius: 2px; }
+
+  .hyd-q {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px; margin-bottom: 14px;
+  }
+  .hyd-q-stage {
+    font-size: 10px; letter-spacing: 1.3px; text-transform: uppercase;
+    color: var(--accent); font-weight: 800; margin-bottom: 6px;
+  }
+  .hyd-q-text { font-size: 14px; color: var(--text); line-height: 1.55; margin-bottom: 12px; font-weight: 600; }
+  .hyd-q-block { margin-bottom: 10px; }
+  .hyd-q-block-label { font-size: 9px; letter-spacing: 1.3px; text-transform: uppercase; color: var(--muted); font-weight: 800; margin-bottom: 4px; }
+  .hyd-q-block-val { font-size: 12px; color: var(--text-dim); line-height: 1.55; }
+  .hyd-q-tone {
+    background: rgba(90,169,255,0.06); border-left: 2px solid var(--accent);
+    padding: 8px 12px; border-radius: 4px; font-size: 11px; color: var(--text-dim); line-height: 1.5;
+    margin-top: 4px; font-style: italic;
+  }
+  .hyd-responses { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  @media (max-width: 720px) { .hyd-responses { grid-template-columns: 1fr; } }
+  .hyd-response {
+    border-radius: 6px; padding: 10px 12px; border: 1px solid var(--border);
+  }
+  .hyd-response.positive { background: rgba(61,220,132,0.05); border-left: 2px solid var(--green); }
+  .hyd-response.negative { background: rgba(255,90,90,0.04); border-left: 2px solid var(--red); }
+  .hyd-response-label { font-size: 9px; letter-spacing: 1.3px; text-transform: uppercase; font-weight: 800; margin-bottom: 4px; }
+  .hyd-response.positive .hyd-response-label { color: var(--green); }
+  .hyd-response.negative .hyd-response-label { color: var(--red); }
+  .hyd-response-quote { font-size: 11px; color: var(--text); font-style: italic; line-height: 1.5; margin-bottom: 6px; }
+  .hyd-response-next { font-size: 11px; color: var(--text-dim); line-height: 1.5; }
+  .hyd-response-next strong { color: var(--text); }
+
+  /* Email drip campaign */
+  .hyd-emails { display: flex; flex-direction: column; gap: 10px; }
+  .hyd-email {
+    background: var(--surface-2); border: 1px solid var(--border); border-left: 3px solid var(--cyan);
+    border-radius: 8px; padding: 12px 14px;
+  }
+  .hyd-email-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .hyd-email-step { font-size: 10px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: var(--cyan); }
+  .hyd-email-day  { font-size: 10px; color: var(--muted); background: var(--surface-3); padding: 2px 8px; border-radius: 8px; }
+  .hyd-email-subject { font-size: 13px; color: var(--text); margin-bottom: 8px; line-height: 1.5; }
+  .hyd-email-subject strong { color: var(--text-dim); font-weight: 700; }
+  .hyd-email-body { font-size: 12px; color: var(--text-dim); line-height: 1.65; white-space: normal; }
+
+  /* ClearSignals launcher + modal */
+  .cs-launcher {
+    margin-top: 24px; padding: 16px 18px;
+    background: linear-gradient(135deg, rgba(181,131,255,0.08) 0%, rgba(90,169,255,0.05) 100%);
+    border: 1px solid rgba(181,131,255,0.25); border-radius: 10px;
+  }
+  .cs-launcher-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .cs-launcher-title { font-size: 14px; font-weight: 800; color: var(--purple); letter-spacing: -0.01em; }
+  .cs-launcher-sub { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+  .cs-modal {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+    z-index: 1000; align-items: flex-start; justify-content: center; padding: 40px 20px; overflow-y: auto;
+  }
+  .cs-modal.active { display: flex; }
+  .cs-modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; max-width: 760px; width: 100%; }
+  .cs-modal-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+  .cs-modal-title { font-size: 15px; font-weight: 800; color: var(--purple); }
+  .cs-close { background: transparent; border: none; color: var(--text-dim); font-size: 24px; cursor: pointer; line-height: 1; }
+  .cs-close:hover { color: var(--text); }
+  .cs-modal-body { padding: 18px 20px; }
+  .cs-label { display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; }
+  #cs-thread { width: 100%; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; font-family: 'SF Mono', Menlo, monospace; font-size: 12px; line-height: 1.55; resize: vertical; }
+  .cs-actions { display: flex; align-items: center; gap: 14px; margin-top: 10px; }
+  #cs-output { margin-top: 16px; }
+  .cs-health { display: flex; gap: 14px; align-items: center; padding: 12px 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 16px; }
+  .cs-health-score { border: 2px solid var(--border); border-radius: 50%; width: 70px; height: 70px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; }
+  .cs-health-num { font-size: 22px; font-weight: 800; line-height: 1; }
+  .cs-health-label { font-size: 8px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; opacity: 0.7; margin-top: 2px; }
+  .cs-health-verdict { font-size: 14px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
+  .cs-health-summary { font-size: 12px; color: var(--text-dim); line-height: 1.55; }
+  .cs-section-title { font-size: 12px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; color: var(--purple); margin: 14px 0 8px; }
+  .cs-thread-msg { background: var(--surface-2); border: 1px solid var(--border); border-left: 3px solid var(--purple); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+  .cs-thread-msg-head { font-size: 11px; font-weight: 800; color: var(--text); margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
+  .cs-thread-msg-signal { font-size: 9px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; padding: 2px 8px; border-radius: 10px; }
+  .cs-signal-positive, .cs-signal-buying_signal { background: rgba(72,199,142,0.15); color: var(--green); }
+  .cs-signal-negative, .cs-signal-objection, .cs-signal-risk { background: rgba(255,99,99,0.15); color: var(--red); }
+  .cs-signal-neutral, .cs-signal-indecision { background: rgba(255,199,87,0.15); color: var(--yellow); }
+  .cs-signal-missed_opportunity { background: rgba(168,85,247,0.15); color: var(--purple); }
+  .cs-thread-msg-summary { font-size: 12px; color: var(--text-dim); line-height: 1.5; margin-bottom: 6px; }
+  .cs-thread-msg-decode { font-size: 12px; color: var(--text); line-height: 1.55; margin-bottom: 6px; font-style: italic; }
+  .cs-thread-msg-quote { font-size: 11px; color: var(--accent); padding: 4px 8px; border-left: 2px solid var(--accent); margin: 6px 0; line-height: 1.4; }
+  .cs-thread-msg-coaching { font-size: 12px; color: var(--green); line-height: 1.55; padding: 8px 10px; background: rgba(72,199,142,0.06); border: 1px solid rgba(72,199,142,0.2); border-radius: 6px; margin-top: 6px; }
+  .cs-thread-msg-coaching::before { content: 'COACH:'; font-size: 9px; font-weight: 800; letter-spacing: 1px; display: block; margin-bottom: 3px; opacity: 0.7; }
+  .cs-gaps { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; margin-bottom: 16px; }
+  .cs-gap { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+  .cs-gap-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .cs-gap-letter { font-size: 18px; font-weight: 900; color: var(--purple); }
+  .cs-gap-element { font-size: 10px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+  .cs-gap-status { font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .cs-gap-status.confirmed { background: rgba(72,199,142,0.15); color: var(--green); }
+  .cs-gap-status.partially { background: rgba(255,199,87,0.15); color: var(--yellow); }
+  .cs-gap-status.missing, .cs-gap-status.unknown { background: rgba(255,99,99,0.15); color: var(--red); }
+  .cs-gap-evidence { font-size: 11px; color: var(--text-dim); line-height: 1.4; margin-top: 4px; font-style: italic; }
+  .cs-gap-coaching { font-size: 11px; color: var(--text); line-height: 1.4; margin-top: 4px; }
+  .cs-scorecard { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; }
+  .cs-grade { font-size: 36px; font-weight: 900; display: inline-block; margin-right: 12px; }
+  .cs-grade-A { color: var(--green); } .cs-grade-B { color: #48c78e; } .cs-grade-C { color: var(--yellow); } .cs-grade-D { color: #ff8c42; } .cs-grade-F { color: var(--red); }
+  .cs-strength { font-size: 12px; color: var(--green); line-height: 1.5; margin: 4px 0; }
+  .cs-improvement { background: rgba(255,99,99,0.05); border: 1px solid rgba(255,99,99,0.15); border-radius: 6px; padding: 8px 10px; margin: 6px 0; }
+  .cs-improvement-issue { font-size: 12px; color: var(--red); font-weight: 600; margin-bottom: 3px; }
+  .cs-improvement-quote { font-size: 11px; color: var(--text-dim); font-style: italic; padding: 2px 8px; border-left: 2px solid var(--red); margin: 4px 0; }
+  .cs-improvement-better { font-size: 12px; color: var(--green); line-height: 1.5; }
+  .cs-improvement-better::before { content: 'BETTER:'; font-size: 9px; font-weight: 800; letter-spacing: 1px; display: block; margin-bottom: 2px; opacity: 0.7; }
+  .cs-next-step { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+  .cs-next-step-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .cs-next-step-action { font-size: 12px; font-weight: 700; color: var(--text); flex: 1; }
+  .cs-next-step-timing { font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: rgba(168,85,247,0.15); color: var(--purple); text-transform: uppercase; letter-spacing: 0.5px; }
+  .cs-next-step-method { font-size: 9px; color: var(--text-dim); font-weight: 600; letter-spacing: 0.3px; margin-bottom: 4px; }
+  .cs-next-step-script { font-size: 12px; color: var(--text-dim); line-height: 1.55; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; white-space: pre-wrap; cursor: pointer; position: relative; }
+  .cs-next-step-script:hover::after { content: 'Click to copy'; position: absolute; top: 4px; right: 8px; font-size: 9px; color: var(--purple); font-weight: 700; }
+  .cs-next-steps-old { margin: 0 0 0 20px; font-size: 12px; color: var(--text); line-height: 1.7; }
+
+  /* Customer needs */
+  .cs-customer-need { font-size: 12px; color: var(--text); line-height: 1.55; padding: 6px 10px; border-left: 2px solid var(--accent); margin-bottom: 6px; background: rgba(90,169,255,0.04); border-radius: 0 6px 6px 0; }
+
+  /* Deeper Review */
+  .cs-deeper-review-wrap { margin-top: 18px; text-align: center; }
+  .cs-deeper-btn { background: transparent; border: 1px dashed var(--purple); color: var(--purple); font-size: 12px; font-weight: 700; padding: 8px 24px; border-radius: 20px; cursor: pointer; letter-spacing: 0.5px; transition: all 0.2s; }
+  .cs-deeper-btn:hover { background: rgba(168,85,247,0.1); border-style: solid; }
+  .cs-deeper-section { display: none; margin-top: 14px; padding: 16px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; }
+  .cs-deeper-section.active { display: block; }
+  .cs-deeper-intro { font-size: 11px; color: var(--text-dim); margin-bottom: 12px; font-style: italic; line-height: 1.5; }
+  .cs-deeper-group { margin-bottom: 12px; }
+  .cs-deeper-group-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+  .cs-deeper-good .cs-deeper-group-title { color: var(--green); }
+  .cs-deeper-bad .cs-deeper-group-title { color: var(--yellow); }
+  .cs-deeper-ugly .cs-deeper-group-title { color: var(--red); }
+  .cs-deeper-item { font-size: 12px; color: var(--text); line-height: 1.55; padding: 4px 0 4px 12px; border-left: 2px solid var(--border); margin-bottom: 4px; }
+  .cs-deeper-good .cs-deeper-item { border-left-color: var(--green); }
+  .cs-deeper-bad .cs-deeper-item { border-left-color: var(--yellow); }
+  .cs-deeper-ugly .cs-deeper-item { border-left-color: var(--red); }
+
+  /* Email report launcher */
+  /* Coach Chat Widget */
+  .coach-launcher {
+    margin-top: 16px; padding: 16px 18px;
+    background: linear-gradient(135deg, rgba(90,169,255,0.08) 0%, rgba(168,85,247,0.06) 100%);
+    border: 1px solid rgba(90,169,255,0.28); border-radius: 10px;
+  }
+  .coach-launcher-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .coach-launcher-title { font-size: 14px; font-weight: 800; color: var(--accent); letter-spacing: -0.01em; }
+  .coach-launcher-sub { font-size: 12px; color: var(--text-dim); margin-top: 4px; line-height: 1.55; max-width: 640px; }
+  .coach-launcher-btns { display: flex; gap: 8px; flex-shrink: 0; }
+  .coach-panel {
+    position: fixed; bottom: 0; right: 20px; width: 420px; max-height: 70vh;
+    background: var(--surface); border: 1px solid var(--border); border-bottom: none;
+    border-radius: 12px 12px 0 0; display: none; flex-direction: column; z-index: 1000;
+    box-shadow: 0 -4px 30px rgba(0,0,0,0.5);
+  }
+  .coach-panel.active { display: flex; }
+  .coach-panel-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    background: linear-gradient(135deg, rgba(90,169,255,0.1), rgba(168,85,247,0.06));
+    border-radius: 12px 12px 0 0;
+  }
+  .coach-panel-title { font-size: 13px; font-weight: 800; color: var(--accent); }
+  .coach-panel-close { background: transparent; border: none; color: var(--text-dim); font-size: 20px; cursor: pointer; line-height: 1; }
+  .coach-messages {
+    flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;
+    min-height: 200px; max-height: calc(70vh - 120px);
+  }
+  .coach-msg { max-width: 88%; padding: 8px 12px; border-radius: 10px; font-size: 12px; line-height: 1.55; word-wrap: break-word; white-space: pre-wrap; }
+  .coach-msg.user { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 2px; }
+  .coach-msg.assistant { align-self: flex-start; background: var(--surface-2); color: var(--text); border-bottom-left-radius: 2px; border: 1px solid var(--border); }
+  .coach-msg.system { align-self: center; color: var(--text-dim); font-size: 11px; font-style: italic; }
+  .coach-input-area { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
+  .coach-input {
+    flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 12px; color: var(--text); font-size: 12px; resize: none; outline: none;
+    font-family: inherit; min-height: 36px; max-height: 80px;
+  }
+  .coach-input:focus { border-color: var(--accent); }
+  .coach-send { background: var(--accent); border: none; color: #fff; border-radius: 8px; padding: 0 16px; font-size: 12px; font-weight: 700; cursor: pointer; }
+  .coach-send:disabled { opacity: 0.4; cursor: not-allowed; }
+  .coach-typing { font-size: 11px; color: var(--text-dim); padding: 4px 14px; font-style: italic; display: none; }
+  .voice-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 1001; }
+  .voice-modal.active { display: flex; }
+  .voice-modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; text-align: center; max-width: 500px; width: 90%; }
+  .voice-modal-title { font-size: 16px; font-weight: 800; color: var(--accent); margin-bottom: 8px; }
+  .voice-modal-sub { font-size: 12px; color: var(--text-dim); margin-bottom: 16px; line-height: 1.5; }
+  .voice-modal-status { font-size: 12px; color: var(--text-dim); margin-top: 12px; }
+
+  .report-launcher {
+    margin-top: 16px; padding: 16px 18px;
+    background: linear-gradient(135deg, rgba(61,220,132,0.08) 0%, rgba(90,169,255,0.05) 100%);
+    border: 1px solid rgba(61,220,132,0.28); border-radius: 10px;
+  }
+  .report-launcher-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .report-launcher-title { font-size: 14px; font-weight: 800; color: var(--green); letter-spacing: -0.01em; }
+  .report-launcher-sub { font-size: 12px; color: var(--text-dim); margin-top: 4px; line-height: 1.55; max-width: 640px; }
+  .report-launcher-sub b { color: var(--text); }
+  .report-status { font-size: 12px; color: var(--text-dim); margin-top: 10px; }
+  .report-status-ok  { color: var(--green); }
+  .report-status-err { color: var(--red); }
+
+  /* ERRORS */
+  .error-msg {
+    background: rgba(255,90,90,0.1); border: 1px solid rgba(255,90,90,0.3);
+    color: #ff9a9a; padding: 12px 16px; border-radius: 10px; font-size: 13px;
+    margin-top: 10px; display: none;
+  }
+  .error-msg.active { display: block; }
+
+  /* SPINNER */
+  .spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; display: inline-block; vertical-align: middle; }
+
+  footer { margin-top: 40px; text-align: center; font-size: 10px; color: var(--border); letter-spacing: 2px; text-transform: uppercase; padding-bottom: 40px; }
+
+  /* ═══ HERO / MARKETING ═══════════════════════════════════════════════════ */
+  .hero {
+    min-height: 100vh; padding: 20px 16px 60px;
+    background: linear-gradient(180deg, #0a0e13 0%, #0d1219 40%, rgba(90,169,255,0.04) 70%, #0a0e13 100%);
+    position: relative;
+  }
+  .hero-nav {
+    max-width: 1200px; margin: 0 auto;
+    display: flex; justify-content: space-between; align-items: center;
+    padding-bottom: 18px; border-bottom: 1px solid var(--border); margin-bottom: 60px;
+    flex-wrap: wrap; gap: 12px;
+  }
+  .nav-right { display: flex; align-items: center; gap: 16px; }
+  .nav-cta {
+    font-size: 12px; font-weight: 700; color: var(--accent); text-decoration: none;
+    border: 1px solid var(--accent); padding: 6px 16px; border-radius: 8px;
+    transition: all 0.15s;
+  }
+  .nav-cta:hover { background: rgba(90,169,255,0.1); }
+
+  .hero-content {
+    max-width: 1200px; margin: 0 auto;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center;
+    margin-bottom: 80px;
+  }
+  @media (max-width: 900px) { .hero-content { grid-template-columns: 1fr; gap: 40px; } }
+
+  .hero-tag {
+    display: inline-block; font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase;
+    color: var(--accent); font-weight: 800; margin-bottom: 16px;
+    background: rgba(90,169,255,0.1); padding: 4px 12px; border-radius: 20px;
+  }
+  .hero h1 {
+    font-size: 42px; font-weight: 900; line-height: 1.15; letter-spacing: -0.02em;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, var(--text) 0%, var(--accent) 60%, var(--purple) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  @media (max-width: 720px) { .hero h1 { font-size: 28px; } }
+  .hero-sub {
+    font-size: 16px; color: var(--text-dim); line-height: 1.7; margin-bottom: 28px; max-width: 520px;
+  }
+  .hero-cta-btn { display: inline-block; text-decoration: none; font-size: 15px; padding: 14px 32px; }
+
+  /* Cascade visual */
+  .hero-cascade {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 28px; position: relative;
+  }
+  .cascade-title {
+    font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted);
+    font-weight: 800; margin-bottom: 20px;
+  }
+  .cascade-sentence { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; }
+  .cascade-var {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 14px; min-width: 80px; text-align: center; transition: all 0.2s;
+  }
+  .cascade-var.required { border-color: var(--accent); background: rgba(90,169,255,0.08); }
+  .cascade-var.optional { border-color: var(--border); opacity: 0.7; }
+  .cascade-var.optional:hover { opacity: 1; border-color: var(--purple); }
+  .cascade-label { font-size: 11px; font-weight: 800; letter-spacing: 1px; color: var(--text); }
+  .cascade-var.required .cascade-label { color: var(--accent); }
+  .cascade-eg { font-size: 9px; color: var(--muted); }
+  .cascade-arrow { color: var(--muted); font-size: 12px; font-weight: 700; }
+  .cascade-note { font-size: 11px; color: var(--muted); line-height: 1.5; }
+
+  /* Feature cards */
+  .hero-features {
+    max-width: 1200px; margin: 0 auto;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+  }
+  @media (max-width: 900px) { .hero-features { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 560px) { .hero-features { grid-template-columns: 1fr; } }
+  .feature-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 24px 20px; transition: all 0.2s;
+  }
+  .feature-card:hover { border-color: rgba(90,169,255,0.3); transform: translateY(-2px); }
+  .feature-icon {
+    font-size: 20px; width: 40px; height: 40px; border-radius: 10px;
+    background: linear-gradient(135deg, rgba(90,169,255,0.1), rgba(181,131,255,0.1));
+    display: flex; align-items: center; justify-content: center; margin-bottom: 12px;
+    color: var(--accent);
+  }
+  .feature-title { font-size: 14px; font-weight: 800; color: var(--text); margin-bottom: 8px; }
+  .feature-desc { font-size: 12px; color: var(--text-dim); line-height: 1.6; }
+
+  /* ═══ APP SECTION ════════════════════════════════════════════════════════ */
+  .app-header { text-align: center; margin-bottom: 28px; padding-top: 40px; }
+  .app-title {
+    font-size: 24px; font-weight: 900; letter-spacing: -0.01em; margin-bottom: 8px;
+    background: linear-gradient(90deg, var(--accent), var(--purple));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .app-subtitle { font-size: 14px; color: var(--text-dim); }
+
+  .form-section-label {
+    font-size: 12px; color: var(--text-dim); font-weight: 700; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+    padding-top: 12px; border-top: 1px dashed var(--border); margin-top: 4px;
+  }
+  .form-section-label:first-of-type { border-top: none; margin-top: 0; padding-top: 0; }
+  .form-section-badge {
+    font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 800;
+    padding: 2px 8px; border-radius: 4px;
+  }
+  .req-badge { background: rgba(90,169,255,0.15); color: var(--accent); }
+  .opt-badge { background: rgba(181,131,255,0.12); color: var(--purple); }
+  .field-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px; border-radius: 50%; font-size: 9px; font-weight: 900;
+    background: var(--accent); color: #0a0e13; margin-right: 4px; flex-shrink: 0;
+    letter-spacing: 0; text-transform: none; vertical-align: middle; line-height: 1;
+  }
+  .field-num.sub { background: rgba(90,169,255,0.25); color: var(--accent); font-size: 8px; }
+
+  /* Depth indicator */
+  .cascade-depth-indicator {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    padding: 10px 14px; margin-top: 12px;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+    font-size: 10px;
+  }
+  .depth-label { font-weight: 800; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-right: 4px; }
+  .depth-pill {
+    padding: 2px 8px; border-radius: 6px; font-weight: 700; letter-spacing: 0.5px;
+    background: var(--surface-3); color: var(--muted); border: 1px solid transparent;
+    transition: all 0.2s;
+  }
+  .depth-pill.active { background: rgba(90,169,255,0.12); color: var(--accent); border-color: rgba(90,169,255,0.3); }
+  .depth-arrow { color: var(--border); font-size: 9px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════ -->
+<!-- MARKETING HERO (80% of initial viewport)                                  -->
+<!-- ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="hero">
+  <nav class="hero-nav">
+    <div class="brand">
+      <div class="brand-mark">DRiX</div>
+      <div>
+        <div class="brand-name">Data Reimagined Experience</div>
+        <div class="brand-sub">by WinTech Partners</div>
+      </div>
+    </div>
+    <div class="nav-right">
+      <div class="status">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text">Checking…</span>
+      </div>
+      <a href="#app-section" class="nav-cta">Launch App →</a>
+      <a href="/comparison.html" class="nav-cta" style="background:linear-gradient(135deg,var(--purple),var(--accent));color:#0a0e13;">DRiX vs ChatGPT →</a>
+      <a href="/atomize.html" class="nav-cta" style="background:linear-gradient(135deg,var(--green),var(--cyan));color:#0a0e13;">Atomization Demo →</a>
+    </div>
+  </nav>
+
+  <div class="hero-content">
+    <div class="hero-headline">
+      <span class="hero-tag">AI-Powered Sales Intelligence</span>
+      <h1>Know your buyer better<br>than they know themselves.</h1>
+      <p class="hero-sub">DRiX decomposes any company into 9-dimensional intelligence atoms, profiles your voice with CPP, maps relationships with TrueGraph, then reconstructs everything into pain points, sales strategies, discovery questions, and send-ready outreach. In seconds, not hours.</p>
+      <a href="#app-section" class="btn-primary hero-cta-btn">Start Building Intelligence →</a>
+    </div>
+
+    <div class="hero-cascade">
+      <div class="cascade-title">The Intelligence Cascade</div>
+      <div class="cascade-sentence">
+        <span class="cascade-var required"><span class="cascade-label">RESELLER</span><span class="cascade-eg">who you are</span></span>
+        <span class="cascade-arrow">sells</span>
+        <span class="cascade-var required"><span class="cascade-label">SOLUTION</span><span class="cascade-eg">what you sell</span></span>
+        <span class="cascade-arrow">into</span>
+        <span class="cascade-var optional"><span class="cascade-label">INDUSTRY</span><span class="cascade-eg">their market</span></span>
+        <span class="cascade-arrow">to</span>
+        <span class="cascade-var optional"><span class="cascade-label">TITLE</span><span class="cascade-eg">buyer persona</span></span>
+        <span class="cascade-arrow">at</span>
+        <span class="cascade-var optional"><span class="cascade-label">COMPANY</span><span class="cascade-eg">specific target</span></span>
+        <span class="cascade-arrow">who is</span>
+        <span class="cascade-var optional"><span class="cascade-label">INDIVIDUAL</span><span class="cascade-eg">their LinkedIn</span></span>
+      </div>
+      <div class="cascade-note">Required variables are highlighted. Each optional variable you add deepens the intelligence — skip any you don't have.</div>
+    </div>
+  </div>
+
+  <!-- Feature cards -->
+  <div class="hero-features">
+    <div class="feature-card">
+      <div class="feature-icon">◈</div>
+      <div class="feature-title">9D Atom Decomposition</div>
+      <div class="feature-desc">Every insight tagged across persona, buying stage, emotional driver, evidence type, credibility, recency, economic driver, inertia pressure, and industry.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">⚡</div>
+      <div class="feature-title">Dual-Persona Pain Points</div>
+      <div class="feature-desc">Each pain point surfaces a primary owner and a secondary stakeholder — giving your rep two doors to knock on for every pain.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">◎</div>
+      <div class="feature-title">Strategy × Persona Anchoring</div>
+      <div class="feature-desc">Five strategies, each anchored on a unique (Persona × Pain) pair. No overlap. Every angle is a distinct entry point.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">✉</div>
+      <div class="feature-title">Lead Hydration & Outreach</div>
+      <div class="feature-desc">Select your strategy, and DRiX generates discovery questions with branching responses, plus a multi-step email campaign — ready to send.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════ -->
+<!-- APP SECTION (20% — login gate + intelligence form)                        -->
+<!-- ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="container" id="app-section">
+
+  <div class="app-header">
+    <h2 class="app-title">Build Your Intelligence</h2>
+    <p class="app-subtitle">Fill in what you know. Skip what you don't. DRiX adapts to whatever depth you provide.</p>
+  </div>
+
+  <div class="live-demo">
+    <!-- MODE SWITCH -->
+    <div class="mode-switch-wrap">
+      <span class="mode-label" id="mode-label-prod">PRODUCTION</span>
+      <label class="mode-switch">
+        <input type="checkbox" id="mode-toggle" />
+        <span class="mode-slider"></span>
+      </label>
+      <span class="mode-label mode-label-dim" id="mode-label-demo">DEMO</span>
+      <span class="mode-hint" id="mode-hint">Full atom generation (50-150 per source)</span>
+    </div>
+
+    <!-- REQUIRED: Reseller + Solution -->
+    <div class="form-section-label"><span class="form-section-badge req-badge">Required</span> Who are you and what do you sell?</div>
+    <div class="input-grid">
+      <div class="input-wrap">
+        <label class="input-label" for="f-email">Your email<span class="req">*</span></label>
+        <input type="email" class="field" id="f-email" placeholder="you@yourcompany.com" autocomplete="email" />
+      </div>
+    </div>
+    <div class="input-grid">
+      <div class="input-wrap">
+        <label class="input-label" for="f-sender-url"><span class="field-num">1</span> Reseller / your company URL<span class="req">*</span></label>
+        <input type="text" class="field" id="f-sender-url" placeholder="yourcompany.com" autocomplete="off" />
+      </div>
+      <div class="input-wrap">
+        <label class="input-label" for="f-solution-url"><span class="field-num">2</span> Solution URL<span class="req">*</span></label>
+        <div class="input-help">The product or solution page you're selling.</div>
+        <input type="text" class="field" id="f-solution-url" placeholder="yourcompany.com/products/flagship" autocomplete="off" />
+      </div>
+    </div>
+
+    <!-- OPTIONAL CASCADE: Industry → Title → Company → Individual -->
+    <div class="form-section-label"><span class="form-section-badge opt-badge">Optional</span> Add depth — each variable sharpens the intelligence</div>
+
+    <div class="input-grid">
+      <div class="input-wrap">
+        <label class="input-label" for="f-industry"><span class="field-num">3</span> Industry</label>
+        <select class="field" id="f-industry"><option value="">Select…</option></select>
+      </div>
+      <div class="input-wrap">
+        <label class="input-label" for="f-subindustry"><span class="field-num sub">3b</span> Subindustry</label>
+        <select class="field" id="f-subindustry" disabled><option value="">Select industry first</option></select>
+      </div>
+    </div>
+
+    <div class="input-grid">
+      <div class="input-wrap">
+        <label class="input-label" for="f-title"><span class="field-num">4</span> Buyer Title / Persona</label>
+        <div class="input-help">The role you're targeting (e.g., CTO, VP Sales, CISO).</div>
+        <input type="text" class="field" id="f-title" placeholder="e.g. VP of IT, CISO, CFO" autocomplete="off" />
+      </div>
+      <div class="input-wrap">
+        <label class="input-label" for="f-customer-url"><span class="field-num">5</span> Company URL</label>
+        <div class="input-help">A specific company you're targeting.</div>
+        <input type="text" class="field" id="f-customer-url" placeholder="customer.com" autocomplete="off" />
+      </div>
+    </div>
+
+    <div class="input-grid">
+      <div class="input-wrap">
+        <label class="input-label" for="f-individual"><span class="field-num">6</span> Individual LinkedIn URL</label>
+        <div class="input-help">The specific person you're reaching out to.</div>
+        <input type="text" class="field" id="f-individual" placeholder="linkedin.com/in/janedoe" autocomplete="off" />
+      </div>
+      <div class="input-wrap">
+        <label class="input-label" for="f-individual-email"><span class="field-num">7</span> Individual Email <span style="color:#6b7685;font-weight:400">(optional)</span></label>
+        <div class="input-help">Improves digital footprint accuracy.</div>
+        <input type="email" class="field" id="f-individual-email" placeholder="jane.doe@company.com" autocomplete="off" />
+      </div>
+    </div>
+    <div class="input-grid">
+      <div class="input-wrap" style="display:flex;align-items:flex-end">
+        <button class="btn-primary" id="btn-run" style="width:100%">Build Intelligence →</button>
+      </div>
+    </div>
+
+    <div class="cascade-depth-indicator" id="depth-indicator">
+      <span class="depth-label">Depth:</span>
+      <span class="depth-pill active" data-var="reseller">RESELLER</span>
+      <span class="depth-arrow">→</span>
+      <span class="depth-pill active" data-var="solution">SOLUTION</span>
+      <span class="depth-arrow">→</span>
+      <span class="depth-pill" data-var="industry" id="dp-industry">INDUSTRY</span>
+      <span class="depth-arrow">→</span>
+      <span class="depth-pill" data-var="title" id="dp-title">TITLE</span>
+      <span class="depth-arrow">→</span>
+      <span class="depth-pill" data-var="company" id="dp-company">COMPANY</span>
+      <span class="depth-arrow">→</span>
+      <span class="depth-pill" data-var="individual" id="dp-individual">INDIVIDUAL</span>
+    </div>
+
+    <div class="phases" id="phases"></div>
+    <div class="error-msg" id="error-msg"></div>
+  </div>
+
+  <div class="panel" id="atoms-panel"></div>
+  <div class="panel" id="pain-panel"></div>
+  <div class="panel" id="strategies-panel"></div>
+  <div class="panel" id="hydration-panel"></div>
+
+  <footer>DRiX · Data Reimagined Experience · by WinTech Partners</footer>
+</div>
+
+<!-- Sales Advisor Storm modal -->
+<div class="modal-backdrop" id="storm-modal">
+  <div class="modal">
+    <h3>Sales Advisor Storm</h3>
+    <p>You selected <strong id="storm-count">multiple</strong> strategies. In production, DRiX runs a <strong>modified Miro Fish</strong> multi-agent deliberation across our Sales Advisor panel — converging on a single top strategy with confidence levels for each alternative.</p>
+    <div class="note">
+      <strong>For this demo</strong>, we'll proceed with your highest-confidence selection. The full Advisor Storm is coming in the next release.
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeStormModal()">Cancel</button>
+      <button class="btn-success" id="storm-proceed">Proceed →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// ─── STATE ──────────────────────────────────────────────────────────────────
+let state = {
+  naics: null,               // loaded from /api/meta/naics
+  runId: null,               // server-assigned after demo-flow completes
+  strategies: null,          // from server
+  selected: new Set(),       // strategy ids currently checked
+  customStrategy: null,      // { title, explanation }
+  topPickId: null,
+};
+
+// ─── BOOT ───────────────────────────────────────────────────────────────────
+async function boot() {
+  await checkHealth();
+  await loadMeta();
+  wireUI();
+}
+
+async function checkHealth() {
+  try {
+    const r = await fetch('/healthz');
+    const d = await r.json();
+    $('status-text').textContent = d.leadhydration_configured
+      ? `${d.model} · DRiX Ready Lead connected`
+      : `${d.model} · ⚠ DRiX Ready Lead not configured`;
+    if (!d.leadhydration_configured) $('status-dot').classList.add('warn');
+  } catch {
+    $('status-text').textContent = 'Connection issue';
+    $('status-dot').classList.add('warn');
+  }
+}
+
+async function loadMeta() {
+  try {
+    const n = await fetch('/api/meta/naics').then(x => x.json());
+    state.naics = n;
+    // Populate industry dropdown
+    const indSel = $('f-industry');
+    n.forEach(sec => {
+      const opt = document.createElement('option');
+      opt.value = sec.code; opt.textContent = `${sec.code} — ${sec.name}`;
+      indSel.appendChild(opt);
+    });
+  } catch (e) { console.error('Failed to load meta:', e); }
+}
+
+function wireUI() {
+  $('btn-run').onclick = runFlow;
+  $('f-industry').addEventListener('change', onIndustryChange);
+  // Mode toggle
+  $('mode-toggle').addEventListener('change', function() {
+    const isDemo = this.checked;
+    $('mode-label-prod').classList.toggle('mode-label-dim', isDemo);
+    $('mode-label-prod').style.color = isDemo ? '' : '';
+    $('mode-label-demo').classList.toggle('mode-label-dim', !isDemo);
+    $('mode-label-prod').style.color = isDemo ? 'var(--muted)' : 'var(--green)';
+    $('mode-label-demo').style.color = isDemo ? 'var(--yellow)' : '';
+    $('mode-hint').textContent = isDemo
+      ? 'Demo mode: limited to 20 atoms per category'
+      : 'Full atom generation (50-150 per source)';
+  });
+  // Depth indicator — light up pills as user fills fields
+  const depthFields = [
+    { id: 'f-industry', pill: 'dp-industry', type: 'select' },
+    { id: 'f-title', pill: 'dp-title', type: 'input' },
+    { id: 'f-customer-url', pill: 'dp-company', type: 'input' },
+    { id: 'f-individual', pill: 'dp-individual', type: 'input' },
+  ];
+  depthFields.forEach(({ id, pill, type }) => {
+    const el = $(id);
+    if (!el) return;
+    const ev = type === 'select' ? 'change' : 'input';
+    el.addEventListener(ev, () => {
+      const p = $(pill);
+      if (p) p.classList.toggle('active', !!el.value.trim());
+    });
+  });
+  document.querySelectorAll('.field').forEach(f => f.addEventListener('keydown', (e) => { if (e.key === 'Enter') runFlow(); }));
+}
+
+function onIndustryChange() {
+  const code = $('f-industry').value;
+  const sub = $('f-subindustry');
+  sub.innerHTML = '<option value="">Select…</option>';
+  if (!code) { sub.disabled = true; return; }
+  const sec = state.naics.find(s => s.code === code);
+  if (!sec) return;
+  sec.sub.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s.code; opt.textContent = `${s.code} — ${s.name}`;
+    sub.appendChild(opt);
+  });
+  sub.disabled = false;
+}
+
+// ─── RUN FLOW ───────────────────────────────────────────────────────────────
+async function runFlow() {
+  hideError();
+  const email = $('f-email').value.trim();
+  const sender = $('f-sender-url').value.trim();
+  const solution = $('f-solution-url').value.trim();
+
+  if (!email || !sender || !solution) return showError('Fill in email, your company URL, and the solution URL.');
+  if (!/^\S+@\S+\.\S+$/.test(email)) return showError('Email looks invalid.');
+
+  const mode = $('mode-toggle').checked ? 'demo' : 'production';
+  let body = { email, sender_company_url: sender, solution_url: solution, mode };
+
+  // Optional cascade variables — include whatever the user provided
+  const cust = $('f-customer-url').value.trim();
+  if (cust) body.customer_url = cust;
+
+  const ind = $('f-industry').value, sub = $('f-subindustry').value;
+  if (ind) {
+    const indName = state.naics.find(s => s.code === ind)?.name || ind;
+    body.industry = `${indName} (NAICS ${ind})`;
+    if (sub) {
+      const subName = state.naics.find(s => s.code === ind)?.sub.find(x => x.code === sub)?.name || sub;
+      body.subindustry = `${subName} (NAICS ${sub})`;
+    }
+  }
+
+  const title = $('f-title')?.value.trim();
+  if (title) body.recipient_role = title;
+
+  const individual = $('f-individual')?.value.trim();
+  const individualEmail = $('f-individual-email')?.value.trim();
+  if (individual) {
+    body.individual_linkedin = individual;
+    body.individual_name = individual;
+  }
+  if (individualEmail) body.individual_email = individualEmail;
+
+  // Must have at least a customer URL OR an industry
+  if (!body.customer_url && !body.industry) {
+    return showError('Provide at least a Company URL or an Industry so DRiX has a target to analyze.');
+  }
+
+  // Reset UI
+  $('btn-run').disabled = true;
+  $('btn-run').textContent = 'Building Intelligence…';
+  ['atoms-panel', 'pain-panel', 'strategies-panel', 'hydration-panel'].forEach(id => { $(id).classList.remove('active'); $(id).innerHTML = ''; });
+  state.runId = null; state.strategies = null; state.selected = new Set(); state.customStrategy = null;
+
+  const phasesEl = $('phases');
+  phasesEl.classList.add('active');
+  phasesEl.innerHTML = `
+    <div class="phase-item running" id="ph-fetch"><span class="phase-icon">1</span><span class="phase-text">Fetching sender, solution, customer in parallel…</span></div>
+    <div class="phase-item" id="ph-ingest"><span class="phase-icon">2</span><span class="phase-text">Waiting to decompose…</span></div>
+    <div class="phase-item" id="ph-pain"><span class="phase-icon">3</span><span class="phase-text">Waiting to extract pain points…</span></div>
+    <div class="phase-item" id="ph-strategies"><span class="phase-icon">4</span><span class="phase-text">Waiting to generate strategies…</span></div>
+  `;
+
+  try {
+    const res = await fetch('/api/demo-flow', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Request failed (${res.status})`);
+    }
+    await readSSE(res, handleSSE);
+  } catch (e) {
+    showError(e.message);
+  } finally {
+    $('btn-run').disabled = false;
+    $('btn-run').textContent = 'Build Intelligence →';
+  }
+}
+
+async function readSSE(response, handler) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split('\n\n');
+    buffer = events.pop();
+    for (const block of events) {
+      if (!block.trim()) continue;
+      const em = block.match(/^event:\s*(.+)$/m);
+      const dm = block.match(/^data:\s*(.+)$/m);
+      if (!em || !dm) continue;
+      let data; try { data = JSON.parse(dm[1]); } catch { continue; }
+      handler(em[1].trim(), data);
+    }
+  }
+}
+
+function handleSSE(event, data) {
+  switch (event) {
+    case 'phase':
+      setPhase(data.phase, data.message);
+      break;
+    case 'atoms':
+      renderAtoms(data);
+      markPhaseDone('ph-fetch'); markPhaseDone('ph-ingest');
+      break;
+    case 'individual':
+      renderIndividual(data);
+      break;
+    case 'pain':
+      renderPain(data.pain_groups, data.pain_points);
+      markPhaseDone('ph-pain');
+      break;
+    case 'strategies':
+      state.strategies = data;
+      state.topPickId = data.top_pick_id;
+      if (data.run_id) state.runId = data.run_id;
+      renderStrategies(data);
+      markPhaseDone('ph-strategies');
+      break;
+    case 'done':
+      state.runId = data.run_id;
+      break;
+    case 'error':
+      showError(data.message);
+      break;
+  }
+}
+
+function setPhase(phase, message) {
+  const el = $('ph-' + phase);
+  if (!el) return;
+  document.querySelectorAll('.phase-item').forEach(e => e.classList.remove('running'));
+  el.classList.add('running');
+  el.querySelector('.phase-text').textContent = message;
+}
+
+function markPhaseDone(id) {
+  const el = $(id);
+  if (!el) return;
+  el.classList.remove('running');
+  el.classList.add('done');
+  el.querySelector('.phase-icon').textContent = '✓';
+}
+
+// ─── RENDERERS ─────────────────────────────────────────────────────────────
+function renderAtoms(data) {
+  const groups = [
+    { key: 'sender',   label: 'Sender (you)',     role: 'sender' },
+    { key: 'solution', label: 'Solution / product', role: 'solution' },
+    { key: 'customer', label: 'Customer',         role: 'customer' }
+  ];
+  const html = `
+    <div class="section-title">6D-Tagged Atoms</div>
+    <div class="atoms-triple">
+      ${groups.map(g => renderAtomGroup(data[g.key], g)).join('')}
+    </div>
+  `;
+  $('atoms-panel').innerHTML = html;
+  $('atoms-panel').classList.add('active');
+}
+
+function renderIndividual(data) {
+  if (!data) return;
+  const name = data.target?.name || 'Target Individual';
+  const title = data.target?.title || '';
+  const company = data.target?.company || '';
+  const keyInsight = data.target?.key_insight || '';
+  const pitchAngles = data.pitch_angles || [];
+  const careerHighlights = data.career_highlights || [];
+  const publicSignals = data.public_signals || [];
+  const vendorOpinions = data.vendor_opinions || [];
+  const leadershipStyle = data.leadership_style || '';
+  const painSignals = data.pain_signals || [];
+  const atomCount = (data.atoms || []).length;
+  const recognized = data.scan?.recognized;
+  const confidence = data.scan?.confidence || '';
+
+  const listItems = (items) => items.map(i => `<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06);font-size:12px;line-height:1.5">${esc(i)}</div>`).join('');
+
+  const panel = document.createElement('div');
+  panel.className = 'result-panel active';
+  panel.id = 'individual-panel';
+  panel.innerHTML = `
+    <div class="section-title">Individual Intelligence &mdash; ${esc(name)}</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:8px">
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div>
+          <div style="font-size:16px;font-weight:700">${esc(name)}</div>
+          ${title || company ? `<div style="font-size:13px;color:var(--text-2)">${esc(title)}${title && company ? ' &mdash; ' : ''}${esc(company)}</div>` : ''}
+        </div>
+        ${confidence ? `<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:4px 10px;border-radius:12px;${recognized ? 'background:rgba(61,220,132,0.12);color:var(--green)' : 'background:rgba(245,158,11,0.12);color:#f59e0b'}">${recognized ? 'Recognized' : 'Inferred'} &middot; ${esc(confidence)}</div>` : ''}
+      </div>
+
+      ${keyInsight ? `
+      <div style="background:rgba(90,169,255,0.08);border-left:3px solid var(--cyan);padding:10px 14px;border-radius:0 8px 8px 0;margin-bottom:14px">
+        <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--cyan);margin-bottom:4px">Key Insight</div>
+        <div style="font-size:14px;line-height:1.5">${esc(keyInsight)}</div>
+      </div>` : ''}
+
+      <div style="font-size:13px;color:var(--text-2);margin-bottom:14px;line-height:1.6">${esc(data.summary || '')}</div>
+
+      ${pitchAngles.length ? `
+      <div style="margin-bottom:14px">
+        <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--green);margin-bottom:8px">Conversation Openers (${pitchAngles.length})</div>
+        ${pitchAngles.map(a => `<div style="background:rgba(61,220,132,0.06);border:1px solid rgba(61,220,132,0.2);border-radius:6px;padding:8px 10px;margin:4px 0;font-size:12px;line-height:1.5">${esc(a)}</div>`).join('')}
+      </div>` : ''}
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+
+        ${careerHighlights.length ? `
+        <div>
+          <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--cyan);margin-bottom:8px">Career Highlights (${careerHighlights.length})</div>
+          ${listItems(careerHighlights)}
+        </div>` : ''}
+
+        ${painSignals.length ? `
+        <div>
+          <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#ef4444;margin-bottom:8px">Pain Signals (${painSignals.length})</div>
+          ${listItems(painSignals)}
+        </div>` : ''}
+
+        ${publicSignals.length ? `
+        <div>
+          <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#a78bfa;margin-bottom:8px">Public Signals (${publicSignals.length})</div>
+          ${listItems(publicSignals)}
+        </div>` : ''}
+
+        ${vendorOpinions.length ? `
+        <div>
+          <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#f59e0b;margin-bottom:8px">Vendor Opinions (${vendorOpinions.length})</div>
+          ${listItems(vendorOpinions)}
+        </div>` : ''}
+
+      </div>
+
+      ${leadershipStyle ? `
+      <div style="margin-top:14px;background:rgba(167,139,250,0.06);border:1px solid rgba(167,139,250,0.2);border-radius:6px;padding:10px 12px">
+        <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#a78bfa;margin-bottom:4px">Leadership Style</div>
+        <div style="font-size:12px;line-height:1.5">${esc(leadershipStyle)}</div>
+      </div>` : ''}
+
+      <div style="margin-top:12px;font-size:11px;color:var(--dim)">${atomCount} behavioral atoms extracted</div>
+    </div>
+  `;
+
+  const atomsPanel = $('atoms-panel');
+  if (atomsPanel && atomsPanel.parentNode) {
+    const existing = document.getElementById('individual-panel');
+    if (existing) existing.remove();
+    atomsPanel.parentNode.insertBefore(panel, atomsPanel.nextSibling);
+  }
+}
+
+function renderAtomGroup(entry, g) {
+  if (!entry) return `<div class="atom-group"><div class="atom-group-title">${esc(g.label)}</div><div class="atom-group-summary">No data.</div></div>`;
+  const name = entry.target?.name || g.label;
+  const atoms = entry.atoms || [];
+  const count = atoms.length;
+  let sourceBadge = '';
+  if (entry.source === 'local_cache') {
+    sourceBadge = `<span class="atom-source src-tde" title="Instant — served from in-memory cache (no LLM call)" style="background:rgba(61,220,132,0.18);color:var(--green);border-color:rgba(61,220,132,0.4)">⚡ Memory cache</span>`;
+  } else if (entry.source === 'db_cache') {
+    sourceBadge = `<span class="atom-source src-tde" title="Served from Postgres cache (30-day TTL, no LLM call)" style="background:rgba(61,220,132,0.14);color:var(--green);border-color:rgba(61,220,132,0.35)">⚡ DB cache (30d)</span>`;
+  } else if (entry.source === 'tde_cache') {
+    sourceBadge = `<span class="atom-source src-tde" title="Reused from DRiX collection ${esc(entry.tde_collection || '')} (${esc(String(entry.tde_atom_count || ''))} atoms)">◈ DRiX cache</span>`;
+  } else if (entry.source === 'fresh') {
+    sourceBadge = `<span class="atom-source src-fresh" title="Fresh ingest ... DRiX warmup fired in background for next time">⌁ Fresh (warming DRiX)</span>`;
+  }
+  // Group atoms by type for accordion
+  const byType = {};
+  atoms.forEach(a => {
+    const t = a.type || 'unknown';
+    if (!byType[t]) byType[t] = [];
+    byType[t].push(a);
+  });
+  const typeOrder = ['mission','product','icp','proof_point','team','stack_signal','buying_trigger','differentiator','partnership','contact','weakness','mission_gap'];
+  const sortedTypes = Object.keys(byType).sort((a, b) => {
+    const ai = typeOrder.indexOf(a), bi = typeOrder.indexOf(b);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+  const uid = g.key + '_' + Date.now();
+  const accordionHtml = sortedTypes.map(type => {
+    const items = byType[type];
+    const typeLabel = type.replace(/_/g, ' ');
+    return `
+      <div class="atom-type-group">
+        <div class="atom-type-header" onclick="toggleAtomType(this)">
+          <span class="atom-type-arrow">▶</span>
+          <span class="atom-type-label">${esc(typeLabel)}</span>
+          <span class="atom-type-count">${items.length}</span>
+        </div>
+        <div class="atom-type-body" style="display:none">
+          ${items.map(renderAtomMini).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="atom-group">
+      <div class="atom-group-head">
+        <div>
+          <div class="atom-group-title">${esc(name)}</div>
+          <div class="atom-group-meta">
+            <span class="atom-count-badge">${count} ATOMS</span>
+            <span class="atom-count-badge" style="background:rgba(181,131,255,0.12);color:var(--purple)">${sortedTypes.length} TYPES</span>
+            ${sourceBadge}
+          </div>
+        </div>
+        <span class="atom-group-role ${g.role}">${esc(g.role)}</span>
+      </div>
+      <div class="atom-group-summary">${esc(entry.summary || '')}</div>
+      <div class="atoms-accordion">
+        ${accordionHtml}
+      </div>
+    </div>
+  `;
+}
+
+function toggleAtomType(header) {
+  const body = header.nextElementSibling;
+  const arrow = header.querySelector('.atom-type-arrow');
+  const isOpen = body.style.display !== 'none';
+  // Close all siblings first
+  const parent = header.closest('.atoms-accordion');
+  parent.querySelectorAll('.atom-type-body').forEach(b => { b.style.display = 'none'; });
+  parent.querySelectorAll('.atom-type-arrow').forEach(a => { a.textContent = '▶'; a.classList.remove('open'); });
+  // Toggle this one
+  if (!isOpen) {
+    body.style.display = '';
+    arrow.textContent = '▼';
+    arrow.classList.add('open');
+  }
+}
+
+function renderAtomMini(a) {
+  const cred = parseInt(a.d_credibility) || 0;
+  const credPct = Math.min(100, cred * 20);
+  const ind = a.d_industry || {};
+  const indValue = (ind.naics || ind.sic)
+    ? `${esc(shortCode(ind.naics))}<br><span style="color:var(--muted)">${esc(shortCode(ind.sic))}</span>`
+    : '—';
+  return `
+    <div class="atom-mini ${esc(a.type)}">
+      <div class="atom-mini-top">
+        <span class="atom-mini-type">${esc((a.type || '').replace(/_/g, ' '))}</span>
+        <span class="atom-mini-conf">${esc(a.confidence || '')}</span>
+      </div>
+      <div class="atom-mini-claim">${esc(a.claim)}</div>
+      <div class="d9" title="9-dimensional tagging">
+        <div class="d9-cell persona"><div class="d9-cell-label">Persona</div><div class="d9-cell-val">${esc(short(a.d_persona))}</div></div>
+        <div class="d9-cell stage"><div class="d9-cell-label">Stage</div><div class="d9-cell-val">${esc(short(a.d_buying_stage))}</div></div>
+        <div class="d9-cell driver"><div class="d9-cell-label">Emotion</div><div class="d9-cell-val">${esc(short(a.d_emotional_driver))}</div></div>
+        <div class="d9-cell evidence"><div class="d9-cell-label">Evidence</div><div class="d9-cell-val">${esc(short(a.d_evidence_type))}</div></div>
+        <div class="d9-cell credibility">
+          <div class="d9-cell-label">Cred</div>
+          <div class="d9-cell-val">${cred || '—'}/5</div>
+          <div class="cred-bar"><div class="cred-bar-fill" style="width:${credPct}%"></div></div>
+        </div>
+        <div class="d9-cell recency"><div class="d9-cell-label">Recency</div><div class="d9-cell-val">${esc(short(a.d_recency))}</div></div>
+        <div class="d9-cell econ"><div class="d9-cell-label">Econ Pull</div><div class="d9-cell-val">${esc(short(a.d_economic_driver))}</div></div>
+        <div class="d9-cell sqp"><div class="d9-cell-label">Inertia</div><div class="d9-cell-val">${esc(short(a.d_status_quo_pressure))}</div></div>
+        <div class="d9-cell industry"><div class="d9-cell-label">Industry</div><div class="d9-cell-val">${indValue}</div></div>
+      </div>
+    </div>
+  `;
+}
+
+// Strip the "52" or "H" code, keep short name; for chips we just use the code
+function shortCode(s) {
+  if (!s) return '—';
+  const m = String(s).match(/^(\d{2}(?:-\d{2})?|[A-J])\s+(.*)$/);
+  return m ? m[1] : String(s).slice(0, 10);
+}
+
+function short(s) {
+  if (!s) return '—';
+  // First word, or first token before slash — kept short for the chip
+  return String(s).split(/[\/,]/)[0].split(' ').slice(0, 2).join(' ');
+}
+
+function renderPain(painGroups, painPointsFlat) {
+  // painGroups = { company_pain, subindustry_pain, industry_pain }. painPointsFlat is a fallback.
+  const groups = painGroups || { company_pain: [], subindustry_pain: [], industry_pain: painPointsFlat || [] };
+  const total = (groups.company_pain?.length || 0) + (groups.subindustry_pain?.length || 0) + (groups.industry_pain?.length || 0);
+  if (total === 0) {
+    $('pain-panel').innerHTML = '<div class="section-title">Customer Pain Points</div><div style="color:var(--text-dim);font-size:13px">Pain surfacing returned nothing — try a richer customer URL, or add industry/sub-industry.</div>';
+    $('pain-panel').classList.add('active');
+    return;
+  }
+  const section = (label, items, tone) => {
+    if (!items || !items.length) return '';
+    return `
+      <div class="pain-section pain-section-${tone}">
+        <div class="pain-section-head">
+          <span class="pain-section-label">${esc(label)}</span>
+          <span class="pain-section-count">${items.length}</span>
+        </div>
+        <div class="pain-grid">
+          ${items.map(p => renderPainCard(p, tone)).join('')}
+        </div>
+      </div>
+    `;
+  };
+  $('pain-panel').innerHTML = `
+    <div class="section-title">Pain Points — ${total} across company, sub-industry, industry</div>
+    ${section('Company-specific',   groups.company_pain,     'company')}
+    ${section('Sub-industry',       groups.subindustry_pain, 'subindustry')}
+    ${section('Industry-wide',      groups.industry_pain,    'industry')}
+  `;
+  $('pain-panel').classList.add('active');
+}
+
+function renderPainCard(p, tone) {
+  // Build per-persona chips helper
+  const personaChips = (per) => {
+    if (!per) return '';
+    const u = per.urgency || p.urgency;  // fallback to top-level for legacy data
+    const el = per.economic_lever || p.economic_lever;
+    const inf = per.inertia_force || p.inertia_force;
+    return `<div class="pain-meta" style="margin-top:4px">
+      ${u ? `<span class="pain-chip urgency-${esc(u)}">urgency: ${esc(u)}</span>` : ''}
+      ${el && el !== 'None' ? `<span class="pain-chip">pull: ${esc(el)}</span>` : ''}
+      ${inf && inf !== 'None' ? `<span class="pain-chip">inertia: ${esc(inf)}</span>` : ''}
+    </div>`;
+  };
+
+  // Build persona section — support dual personas (new) or legacy single persona
+  let personaHtml = '';
+  if (p.persona_primary && p.persona_secondary) {
+    personaHtml = `<div class="pain-personas">
+      <div class="pain-persona-card">
+        <div class="pain-persona-label">Primary Owner</div>
+        <div class="pain-persona-title">${esc(p.persona_primary.title || '')}</div>
+        ${p.persona_primary.rationale ? `<div class="pain-persona-rationale">${esc(p.persona_primary.rationale)}</div>` : ''}
+        <div class="pain-persona-perspective">${esc(p.persona_primary.perspective || '')}</div>
+        ${personaChips(p.persona_primary)}
+      </div>
+      <div class="pain-persona-card secondary">
+        <div class="pain-persona-label">Also Affected</div>
+        <div class="pain-persona-title">${esc(p.persona_secondary.title || '')}</div>
+        ${p.persona_secondary.rationale ? `<div class="pain-persona-rationale">${esc(p.persona_secondary.rationale)}</div>` : ''}
+        <div class="pain-persona-perspective">${esc(p.persona_secondary.perspective || '')}</div>
+        ${personaChips(p.persona_secondary)}
+      </div>
+    </div>`;
+  } else if (p.persona) {
+    personaHtml = `<div class="pain-meta" style="margin-bottom:6px"><span class="pain-chip">${esc(p.persona)}</span></div>`;
+  }
+  return `
+    <div class="pain-card pain-card-${esc(tone)}">
+      <div class="pain-title">${esc(p.title || '')}</div>
+      <div class="pain-desc">${esc(p.description || '')}</div>
+      ${p.evidence ? `<div class="pain-evidence">${esc(p.evidence)}</div>` : ''}
+      ${personaHtml}
+    </div>
+  `;
+}
+
+function renderStrategies(data) {
+  const strats = data.strategies || [];
+  const topId = data.top_pick_id;
+  const html = `
+    <div class="strat-header-row">
+      <div class="section-title" style="margin:0">Sales Strategies — ${strats.length}</div>
+      <div class="strat-header-info">
+        <strong>${esc(data.sender_label || 'You')}</strong> selling
+        <strong>${esc(data.solution_label || 'your solution')}</strong> to
+        <strong>${esc(data.customer_label || 'the customer')}</strong>
+      </div>
+    </div>
+    <div class="strat-list" id="strat-list">
+      ${strats.map(s => renderStratCard(s, s.id === topId)).join('')}
+      <div class="strat-custom-card">
+        <button class="strat-custom-btn" onclick="toggleCustom()">+ Add your own (6th) strategy</button>
+        <div class="strat-custom-form" id="strat-custom-form">
+          <input type="text" id="custom-title" placeholder="Strategy title (e.g. 'Weekend pilot at their flagship site')" />
+          <textarea id="custom-explain" placeholder="Explain in 2-3 sentences why this wins."></textarea>
+          <button class="btn-secondary" onclick="saveCustom()">Save custom strategy</button>
+        </div>
+      </div>
+    </div>
+    <div class="strat-actions">
+      <div class="strat-action-info" id="strat-action-info">Click a strategy to select it.</div>
+      <div class="strat-action-buttons">
+        <button class="btn-success" id="btn-proceed" disabled onclick="onProceed()">Proceed with selected →</button>
+        <button class="btn-primary" id="btn-storm" disabled onclick="onAdvisorStorm()" style="display:none">Run Sales Advisor Storm</button>
+      </div>
+    </div>
+  `;
+  $('strategies-panel').innerHTML = html;
+  $('strategies-panel').classList.add('active');
+  $('strategies-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderStratCard(s, isTop) {
+  const confPct = Math.max(0, Math.min(100, parseInt(s.confidence) || 0));
+  const persona = s.target_persona || 'General';
+  const pain = s.pain_anchor || '—';
+  const force = s.strategy_force || 'balanced';
+  const forceLabel = force === 'economic_pull' ? 'Econ Pull' : force === 'counter_inertia' ? 'Counter Inertia' : 'Balanced';
+  return `
+    <div class="strat-card ${isTop ? 'top-pick' : ''}" data-id="${esc(s.id)}" onclick="toggleStrategy('${esc(s.id)}')">
+      <div class="strat-head">
+        <div class="strat-check"></div>
+        <div class="strat-title">${esc(s.title)}</div>
+      </div>
+      <div>
+        <span class="strat-anchor">
+          <span class="strat-anchor-persona">${esc(persona)}</span>
+          <span class="strat-anchor-x">×</span>
+          <span class="strat-anchor-pain">${esc(pain)}</span>
+        </span>
+        <span class="strat-force ${esc(force)}">${esc(forceLabel)}</span>
+      </div>
+      <div class="strat-explain" style="margin-top:10px">${esc(s.explanation)}</div>
+      <div class="strat-meta">
+        <div class="strat-cell"><div class="strat-cell-label">Customer pain</div><div class="strat-cell-val">${esc(s.customer_pain)}</div></div>
+        <div class="strat-cell"><div class="strat-cell-label">You bring</div><div class="strat-cell-val">${esc(s.sender_contribution)}</div></div>
+        <div class="strat-cell"><div class="strat-cell-label">Solution delivers</div><div class="strat-cell-val">${esc(s.solution_contribution)}</div></div>
+        <div class="strat-cell"><div class="strat-cell-label">First step</div><div class="strat-cell-val">${esc(s.first_step)}</div></div>
+      </div>
+      <div class="strat-footer">
+        <span class="strat-confidence">CONFIDENCE ${confPct}<span class="strat-conf-bar"><span class="strat-conf-fill" style="width:${confPct}%"></span></span></span>
+      </div>
+    </div>
+  `;
+}
+
+// ─── STRATEGY SELECTION ─────────────────────────────────────────────────────
+function toggleStrategy(id) {
+  const card = document.querySelector(`.strat-card[data-id="${id}"]`);
+  if (!card) return;
+  if (state.selected.has(id)) {
+    state.selected.delete(id);
+    card.classList.remove('selected');
+  } else {
+    state.selected.add(id);
+    card.classList.add('selected');
+  }
+  updateStratActions();
+}
+
+function updateStratActions() {
+  const count = state.selected.size;
+  const info = $('strat-action-info');
+  const proceed = $('btn-proceed');
+  const storm = $('btn-storm');
+  if (count === 0) {
+    info.textContent = 'Click a strategy to select it. Multi-select to trigger Sales Advisor Storm.';
+    proceed.disabled = true; proceed.style.display = '';
+    storm.disabled = true; storm.style.display = 'none';
+  } else if (count === 1) {
+    info.innerHTML = `<strong>${count}</strong> strategy selected. Click proceed to hydrate the lead.`;
+    proceed.disabled = false; proceed.style.display = '';
+    storm.disabled = true; storm.style.display = 'none';
+  } else {
+    info.innerHTML = `<strong>${count}</strong> strategies selected. Run Advisor Storm to converge on one.`;
+    proceed.disabled = true; proceed.style.display = 'none';
+    storm.disabled = false; storm.style.display = '';
+  }
+}
+
+function toggleCustom() {
+  $('strat-custom-form').classList.toggle('active');
+}
+
+function saveCustom() {
+  const title = $('custom-title').value.trim();
+  const expl = $('custom-explain').value.trim();
+  if (!title || !expl) return showError('Custom strategy needs a title and an explanation.');
+  state.customStrategy = { title, explanation: expl };
+  // Add a visible card to the list and mark it selected
+  const list = $('strat-list');
+  const customCard = document.createElement('div');
+  customCard.className = 'strat-card selected';
+  customCard.dataset.id = 'custom';
+  customCard.innerHTML = `
+    <div class="strat-head"><div class="strat-check"></div><div class="strat-title">${esc(title)} <span style="font-size:10px;color:var(--muted);margin-left:6px;">(your custom)</span></div></div>
+    <div class="strat-explain">${esc(expl)}</div>
+  `;
+  customCard.onclick = () => toggleStrategy('custom');
+  list.insertBefore(customCard, list.lastElementChild);
+  state.selected.add('custom');
+  $('strat-custom-form').classList.remove('active');
+  $('custom-title').value = ''; $('custom-explain').value = '';
+  updateStratActions();
+}
+
+async function onProceed() {
+  if (state.selected.size !== 1) return;
+  const id = [...state.selected][0];
+  const btn = $('btn-proceed');
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Loading…';
+  try {
+    await hydrate(id);
+  } catch (e) {
+    showError(e.message || 'Hydration failed — check server logs.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+    updateStratActions();
+  }
+}
+
+function onAdvisorStorm() {
+  const n = state.selected.size;
+  $('storm-count').textContent = n;
+  $('storm-modal').classList.add('active');
+  $('storm-proceed').onclick = async () => {
+    closeStormModal();
+    // For demo, pick the selected strategy with highest confidence as "the winner"
+    let best = null;
+    for (const id of state.selected) {
+      if (id === 'custom') continue; // can't rank custom by confidence
+      const s = (state.strategies?.strategies || []).find(x => x.id === id);
+      if (s && (!best || (parseInt(s.confidence) || 0) > (parseInt(best.confidence) || 0))) best = s;
+    }
+    const winnerId = best ? best.id : [...state.selected][0];
+    await hydrate(winnerId);
+  };
+}
+
+function closeStormModal() { $('storm-modal').classList.remove('active'); }
+
+// ─── HYDRATION ─────────────────────────────────────────────────────────────
+async function hydrate(strategyId) {
+  if (!state.runId) return showError('No run in memory — rerun the flow.');
+  const panel = $('hydration-panel');
+  panel.classList.add('active');
+  panel.innerHTML = `
+    <div class="section-title">Lead Hydration</div>
+    <div style="color:var(--text-dim);font-size:13px;display:flex;align-items:center;gap:10px"><span class="spinner"></span> Calling DRiX Ready Lead ... researching solution, mapping pain, generating discovery questions...</div>
+  `;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  try {
+    const body = strategyId === 'custom'
+      ? { run_id: state.runId, custom_strategy: state.customStrategy }
+      : { run_id: state.runId, strategy_id: strategyId };
+    const res = await fetch('/api/hydrate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || err.error || `Hydration failed (${res.status})`);
+    }
+    const data = await res.json();
+    renderHydration(data);
+  } catch (e) {
+    panel.innerHTML = `
+      <div class="section-title">Lead Hydration</div>
+      <div class="error-msg active">${esc(e.message)}</div>
+    `;
+  }
+}
+
+function renderHydration(data) {
+  const h = data.hydration || {};
+  const chosen = data.chosen_strategy || {};
+  const score = h.score || 0;
+  const scoreColor = score >= 80 ? 'var(--red)' : score >= 60 ? 'var(--orange)' : score >= 40 ? 'var(--yellow)' : 'var(--muted)';
+
+  const painsHtml = (h.painIndicators || []).map(p => `
+    <div class="hyd-pain">
+      <div class="hyd-pain-label">${esc(p.label)}</div>
+      <div class="hyd-pain-expl">${esc(p.explanation)}</div>
+    </div>
+  `).join('');
+
+  const questionsHtml = (h.questions || []).map(q => `
+    <div class="hyd-q">
+      <div class="hyd-q-stage">${esc(q.stage || 'Question')}</div>
+      <div class="hyd-q-text">${esc(q.question)}</div>
+
+      <div class="hyd-q-block">
+        <div class="hyd-q-block-label">Purpose — why ask this</div>
+        <div class="hyd-q-block-val">${esc(q.purpose || '')}</div>
+      </div>
+
+      ${q.pain_it_targets ? `
+      <div class="hyd-q-block">
+        <div class="hyd-q-block-label">Pain it targets</div>
+        <div class="hyd-q-block-val">${esc(q.pain_it_targets)}</div>
+      </div>` : ''}
+
+      ${q.tone_guidance ? `<div class="hyd-q-tone">${esc(q.tone_guidance)}</div>` : ''}
+
+      <div class="hyd-responses">
+        <div>
+          ${(q.positive_responses || []).map(r => `
+            <div class="hyd-response positive">
+              <div class="hyd-response-label">If they say (positive)</div>
+              <div class="hyd-response-quote">"${esc(r.response)}"</div>
+              <div class="hyd-response-next"><strong>Next:</strong> ${esc(r.next_step)}</div>
+            </div>
+          `).join('')}
+        </div>
+        <div>
+          ${(q.neutral_negative_responses || q.negative_responses || []).map(r => `
+            <div class="hyd-response negative">
+              <div class="hyd-response-label">If they say (pivot to recover)</div>
+              <div class="hyd-response-quote">"${esc(r.response)}"</div>
+              <div class="hyd-response-next"><strong>Pivot:</strong> ${esc(r.pivot || r.next_step || '')}</div>
+            </div>
+          `).join('')}
+          ${(() => {
+            const ur = q.unexpected_response;
+            if (ur && ur.response) {
+              return `<div class="hyd-response negative" style="border-color:rgba(255,199,87,0.35);background:rgba(255,199,87,0.06)">
+                <div class="hyd-response-label" style="color:var(--yellow)">If they say something unexpected</div>
+                <div class="hyd-response-quote">"${esc(ur.response)}"</div>
+                <div class="hyd-response-next"><strong>Pivot:</strong> ${esc(ur.pivot || '')}</div>
+              </div>`;
+            } else if (q.expected_answer_unexpected) {
+              return `<div class="hyd-response negative" style="border-color:rgba(255,199,87,0.35);background:rgba(255,199,87,0.06)">
+                <div class="hyd-response-label" style="color:var(--yellow)">If they say something unexpected</div>
+                <div class="hyd-response-quote">"${esc(q.expected_answer_unexpected)}"</div>
+              </div>`;
+            }
+            return '';
+          })()}
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  // Email drip campaign (5-step sequence) returned by /api/agent/company-pain.
+  const emails = h.emailCampaign || h.emailSequence || [];
+  const emailsHtml = emails.map((em, i) => `
+    <div class="hyd-email">
+      <div class="hyd-email-head">
+        <span class="hyd-email-step">${esc(em.label || ('Email ' + (em.step || i+1)))}</span>
+        ${em.sendDay ? `<span class="hyd-email-day">${esc(em.sendDay)}</span>` : ''}
+      </div>
+      <div class="hyd-email-subject"><strong>Subject:</strong> ${esc(em.subject || em.subject_line || '')}</div>
+      <div class="hyd-email-body">${esc(em.body || em.content || '').replace(/\n/g, '<br>')}</div>
+    </div>
+  `).join('');
+
+  $('hydration-panel').innerHTML = `
+    <div class="section-title">Lead Hydration — Strategy: ${esc(chosen.title || '')}</div>
+
+    <div class="hyd-head">
+      <div class="hyd-who">
+        <div class="hyd-whoisthis">${esc(h.whoIsThis || '—')}</div>
+      </div>
+      <div class="hyd-score" style="border-color:${scoreColor};color:${scoreColor}">
+        <div class="hyd-score-num">${score}</div>
+        <div class="hyd-score-label">FIT SCORE</div>
+      </div>
+    </div>
+
+    ${h.primaryLead ? `
+      <div class="hyd-primary-lead">
+        <div class="hyd-primary-lead-title">Primary lead — who to target</div>
+        <div class="hyd-primary-lead-val">${esc(h.primaryLead.title)} · <span style="color:var(--text-dim);font-weight:500">${esc(h.primaryLead.topic)}</span></div>
+      </div>` : ''}
+
+    ${painsHtml ? `
+      <div class="section-title" style="margin-top:10px">Pain Indicators</div>
+      <div class="hyd-pains">${painsHtml}</div>` : ''}
+
+    ${questionsHtml ? `
+      <div class="hyd-questions-title">Discovery Questions</div>
+      ${questionsHtml}` : ''}
+
+    ${emailsHtml ? `
+      <div class="hyd-questions-title" style="margin-top:24px">Email Drip Campaign (${emails.length}-step sequence)</div>
+      <div class="hyd-emails">${emailsHtml}</div>` : ''}
+
+    <div class="cs-launcher">
+      <div class="cs-launcher-head">
+        <div>
+          <div class="cs-launcher-title">ClearSignals AI ... email thread analyzer</div>
+          <div class="cs-launcher-sub">Once the conversation starts, paste any reply thread here and get deal-health scoring plus next-step coaching.</div>
+        </div>
+        <button class="btn-primary" onclick="openClearSignals()">Analyze a thread</button>
+      </div>
+    </div>
+
+    <div class="coach-launcher">
+      <div class="coach-launcher-head">
+        <div>
+          <div class="coach-launcher-title">AI Sales Coach</div>
+          <div class="coach-launcher-sub">Ask anything about this deal — pain points, objections, what to say, who to target. Grounded in everything from this run.</div>
+        </div>
+        <div class="coach-launcher-btns">
+          <button class="btn-primary" onclick="openCoachChat()">Chat Coach</button>
+          <button class="btn-primary" style="background:var(--purple)" onclick="openVoiceCoach()">Voice Coach</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="report-launcher">
+      <div class="report-launcher-head">
+        <div>
+          <div class="report-launcher-title">Save full report</div>
+          <div class="report-launcher-sub">Full report ... atoms, pain points, all 5 strategies, DRiX Ready Lead output, and ClearSignals analysis (if run). Opens in Word or any browser.</div>
+        </div>
+        <button class="btn-success" onclick="downloadReport()" id="report-btn">Download Report</button>
+      </div>
+      <div id="report-status" class="report-status"></div>
+    </div>
+  `;
+}
+
+// ─── DOWNLOAD REPORT ──────────────────────────────────────────────────────
+async function downloadReport() {
+  const btn = $('report-btn');
+  const status = $('report-status');
+  if (!state.runId) { status.textContent = 'No run to download yet — complete the demo first.'; return; }
+  btn.disabled = true;
+  status.textContent = 'Building report…';
+  status.className = 'report-status';
+  try {
+    const res = await fetch(`/api/report/${encodeURIComponent(state.runId)}/doc`);
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `DRiX-Report-${state.runId}.docx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    status.textContent = 'Downloaded.';
+    status.className = 'report-status report-status-ok';
+  } catch (e) {
+    status.textContent = e.message;
+    status.className = 'report-status report-status-err';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ─── CLEARSIGNALS MODAL ────────────────────────────────────────────────────
+function openClearSignals() {
+  let modal = $('cs-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'cs-modal';
+    modal.className = 'cs-modal';
+    modal.innerHTML = `
+      <div class="cs-modal-box">
+        <div class="cs-modal-head">
+          <div class="cs-modal-title">ClearSignals AI ... Email Thread Analysis</div>
+          <button class="cs-close" onclick="closeClearSignals()">×</button>
+        </div>
+        <div class="cs-modal-body">
+          <label class="cs-label">Paste the full email thread (customer replies + your responses):</label>
+          <textarea id="cs-thread" rows="10" placeholder="From: prospect@acme.com&#10;Subject: Re: Follow-up&#10;&#10;Thanks for the note. Honestly, timing is tough — we just finished a big rollout and leadership wants to pause before starting anything new..."></textarea>
+          <div class="cs-actions">
+            <button class="btn-primary" id="cs-submit" onclick="submitClearSignals()">Analyze</button>
+            <span id="cs-status" style="color:var(--text-dim);font-size:12px"></span>
+          </div>
+          <div id="cs-output"></div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+  modal.classList.add('active');
+}
+function closeClearSignals() {
+  const m = $('cs-modal');
+  if (m) m.classList.remove('active');
+}
+async function submitClearSignals() {
+  const thread = $('cs-thread').value.trim();
+  if (thread.length < 50) { $('cs-status').textContent = 'Thread must be at least 50 characters.'; return; }
+  if (!state.runId) { $('cs-status').textContent = 'No active run — complete hydration first.'; return; }
+  const btn = $('cs-submit');
+  btn.disabled = true; $('cs-status').textContent = 'Analyzing…'; $('cs-output').innerHTML = '';
+  try {
+    const res = await fetch('/api/clearsignals', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ run_id: state.runId, thread_text: thread })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Request failed');
+    console.log('[ClearSignals] Raw response:', JSON.stringify(data.analysis, null, 2));
+    renderClearSignals(data.analysis || {});
+    $('cs-status').textContent = 'Done.';
+  } catch (e) {
+    $('cs-status').textContent = 'Error: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+function renderClearSignals(a) {
+  // Unwrap: DRiX Ready Lead may return { result: {...} } or the object directly
+  const d = a.result || a;
+  console.log('[ClearSignals] Parsed keys:', Object.keys(d));
+  const health = d.deal_health || {};
+  const threadAn = Array.isArray(d.thread_analysis) ? d.thread_analysis
+    : Array.isArray(d.email_analysis) ? d.email_analysis
+    : Array.isArray(d.messages) ? d.messages
+    : Array.isArray(d.analysis) ? d.analysis : [];
+  const nextSteps = Array.isArray(d.next_steps) ? d.next_steps
+    : Array.isArray(d.recommended_actions) ? d.recommended_actions
+    : Array.isArray(d.action_items) ? d.action_items : [];
+  const scorecard = d.rep_scorecard || d.scorecard || {};
+  console.log('[ClearSignals] threadAn:', threadAn.length, 'nextSteps:', nextSteps.length, 'scorecard keys:', Object.keys(scorecard));
+  const scoreColor = health.score >= 70 ? 'var(--green)' : health.score >= 40 ? 'var(--yellow)' : 'var(--red)';
+
+  // ── MAIN VIEW: Where we are + what to do next. No email-by-email. ──
+
+  $('cs-output').innerHTML = `
+    <!-- Current Status -->
+    <div class="cs-health">
+      <div class="cs-health-score" style="border-color:${scoreColor};color:${scoreColor}">
+        <div class="cs-health-num">${esc(health.score ?? '?')}</div>
+        <div class="cs-health-label">STATUS</div>
+      </div>
+      <div class="cs-health-body">
+        <div class="cs-health-verdict">${esc(health.label || '')} ${health.win_probability != null ? `<span style="font-weight:500;color:var(--text-dim);font-size:12px">Win likelihood: ${health.win_probability}%</span>` : ''} ${health.sentiment_trend ? `<span style="font-weight:500;color:var(--text-dim);font-size:12px">${esc(health.sentiment_trend)}</span>` : ''}</div>
+        <div class="cs-health-summary">${esc(health.status_summary || health.summary || health.explanation || '')}</div>
+      </div>
+    </div>
+
+    <!-- What the customer needs right now -->
+    ${threadAn.length ? (() => {
+      // Distill what the customer is expecting/wanting from the thread signals
+      const customerMsgs = threadAn.filter(t => {
+        const from = (t.message_from || t.from || t.author || '').toLowerCase();
+        return !from.includes('jason') && !from.includes('rep') && !from.includes('seller') && !from.includes('atlas');
+      });
+      const customerNeeds = customerMsgs.filter(t => t.signal_reading || t.what_it_means).map(t => t.signal_reading || t.what_it_means);
+      return customerNeeds.length ? `
+        <div class="cs-section-title">What the customer is telling you</div>
+        ${customerNeeds.map(n => `<div class="cs-customer-need">${esc(n)}</div>`).join('')}
+      ` : '';
+    })() : ''}
+
+    <!-- Recommended next moves -->
+    ${nextSteps.length ? `
+      <div class="cs-section-title">Recommended next moves</div>
+      ${nextSteps.map(s => {
+        if (typeof s === 'string') return `<div class="cs-next-step"><div class="cs-next-step-action">${esc(s)}</div></div>`;
+        return `
+        <div class="cs-next-step">
+          <div class="cs-next-step-head">
+            <div class="cs-next-step-action">${esc(s.action || '')}</div>
+            ${s.timing ? `<span class="cs-next-step-timing">${esc(s.timing)}</span>` : ''}
+          </div>
+          ${s.methodology ? `<div class="cs-next-step-method">${esc(s.methodology)}</div>` : ''}
+          ${s.script ? `<div class="cs-next-step-script" onclick="navigator.clipboard.writeText(this.innerText).then(()=>{this.style.outline='2px solid var(--green)';setTimeout(()=>this.style.outline='',800)})">${esc(s.script)}</div>` : (s.detail ? `<div style="font-size:12px;color:var(--text-dim);line-height:1.55">${esc(s.detail)}</div>` : '')}
+        </div>`;
+      }).join('')}` : ''}
+
+    <!-- ── DEEPER REVIEW: email-by-email teachable moments ── -->
+    <div class="cs-deeper-review-wrap">
+      <button class="cs-deeper-btn" onclick="this.parentElement.nextElementSibling.classList.toggle('active');this.textContent=this.textContent.includes('Deeper')?'Hide Deeper Review':'Deeper Review?'">Deeper Review?</button>
+    </div>
+    <div class="cs-deeper-section">
+      <div class="cs-deeper-intro">Email-by-email breakdown — what went well, what to watch for, and what to do differently next time.</div>
+
+      ${threadAn.length ? `
+        <div class="cs-section-title" style="margin-top:4px">Thread breakdown</div>
+        ${threadAn.map(t => {
+          const sig = (t.signal || 'neutral').toLowerCase();
+          // Rewrite "from" to second person when it's the rep
+          const from = t.message_from || t.from || t.author || 'Message';
+          const fromLower = from.toLowerCase();
+          const isRep = fromLower.includes('jason') || fromLower.includes('rep') || fromLower.includes('seller') || fromLower.includes('atlas');
+          const displayFrom = isRep ? 'You' : from;
+          return `
+          <div class="cs-thread-msg">
+            <div class="cs-thread-msg-head">
+              <span>${esc(displayFrom)}</span>
+              <span class="cs-thread-msg-signal cs-signal-${sig}">${esc(sig.replace('_', ' '))}</span>
+            </div>
+            <div class="cs-thread-msg-summary">${esc(t.message_summary || t.what_they_said || '')}</div>
+            <div class="cs-thread-msg-decode">${esc(t.signal_reading || t.what_it_means || '')}</div>
+            ${t.key_quote ? `<div class="cs-thread-msg-quote">"${esc(t.key_quote)}"</div>` : ''}
+            ${t.coaching_note ? `<div class="cs-thread-msg-coaching">${esc(t.coaching_note)}</div>` : ''}
+          </div>`;
+        }).join('')}
+      ` : ''}
+
+      ${(scorecard.strengths || []).length ? `
+        <div class="cs-deeper-group cs-deeper-good">
+          <div class="cs-deeper-group-title">What you did well</div>
+          ${scorecard.strengths.map(s => `<div class="cs-deeper-item">+ ${esc(typeof s === 'string' ? s : s.issue || '')}</div>`).join('')}
+        </div>` : ''}
+      ${(scorecard.improvements || []).length ? `
+        <div class="cs-deeper-group cs-deeper-bad">
+          <div class="cs-deeper-group-title">Watch for next time</div>
+          ${scorecard.improvements.map(imp => `
+            <div class="cs-deeper-item">
+              ${esc(typeof imp === 'string' ? imp : imp.issue || '')}
+              ${imp.better_version ? `<div style="color:var(--green);margin-top:4px;font-size:11px">Try instead: ${esc(imp.better_version)}</div>` : ''}
+            </div>
+          `).join('')}
+        </div>` : ''}
+
+      ${!threadAn.length && !(scorecard.strengths || []).length && !(scorecard.improvements || []).length ?
+        `<div class="cs-deeper-item" style="color:var(--text-dim)">Not enough signal in this thread yet for a deeper review.</div>` : ''}
+    </div>
+  `;
+}
+
+function showError(msg) {
+  const el = $('error-msg');
+  el.textContent = msg;
+  el.classList.add('active');
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function hideError() { $('error-msg').classList.remove('active'); }
+
+// ─── AI COACH CHAT ──────────────────────────────────────────────────────────
+let coachHistory = [];
+
+function openCoachChat() {
+  let panel = $('coach-panel');
+  if (!panel) {
+    const div = document.createElement('div');
+    div.innerHTML = `
+      <div class="coach-panel" id="coach-panel">
+        <div class="coach-panel-head">
+          <span class="coach-panel-title">AI Sales Coach</span>
+          <button class="coach-panel-close" onclick="closeCoachChat()">&times;</button>
+        </div>
+        <div class="coach-messages" id="coach-messages">
+          <div class="coach-msg system">Ask me anything about this deal. I know the pains, personas, strategies, discovery questions, and competitive angles.</div>
+        </div>
+        <div class="coach-typing" id="coach-typing">Coach is thinking...</div>
+        <div class="coach-input-area">
+          <textarea class="coach-input" id="coach-input" rows="1" placeholder="What should I lead with?" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCoachMsg()}"></textarea>
+          <button class="coach-send" id="coach-send" onclick="sendCoachMsg()">Send</button>
+        </div>
+      </div>`;
+    document.body.appendChild(div);
+    panel = $('coach-panel');
+  }
+  panel.classList.add('active');
+  $('coach-input').focus();
+}
+function closeCoachChat() { const p = $('coach-panel'); if (p) p.classList.remove('active'); }
+
+async function sendCoachMsg() {
+  const input = $('coach-input');
+  const msg = input.value.trim();
+  if (!msg || !state.runId) return;
+  input.value = '';
+
+  const msgs = $('coach-messages');
+  msgs.innerHTML += `<div class="coach-msg user">${esc(msg)}</div>`;
+  msgs.scrollTop = msgs.scrollHeight;
+
+  const sendBtn = $('coach-send');
+  sendBtn.disabled = true;
+  $('coach-typing').style.display = 'block';
+
+  try {
+    const res = await fetch('/api/coach-chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ run_id: state.runId, message: msg, history: coachHistory })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Coach failed');
+    const reply = data.reply || '';
+    coachHistory.push({ role: 'user', content: msg });
+    coachHistory.push({ role: 'assistant', content: reply });
+    msgs.innerHTML += `<div class="coach-msg assistant">${esc(reply)}</div>`;
+  } catch (e) {
+    msgs.innerHTML += `<div class="coach-msg system">Error: ${esc(e.message)}</div>`;
+  } finally {
+    sendBtn.disabled = false;
+    $('coach-typing').style.display = 'none';
+    msgs.scrollTop = msgs.scrollHeight;
+    input.focus();
+  }
+}
+
+// ─── VOICE COACH ────────────────────────────────────────────────────────────
+async function openVoiceCoach() {
+  if (!state.runId) return;
+  let modal = $('voice-modal');
+  if (!modal) {
+    const div = document.createElement('div');
+    div.innerHTML = `
+      <div class="voice-modal" id="voice-modal">
+        <div class="voice-modal-box">
+          <div class="voice-modal-title">Voice Coach</div>
+          <div class="voice-modal-sub">Talk to your AI sales coach by voice. It knows everything from this intelligence run.</div>
+          <div id="voice-widget-area"></div>
+          <div class="voice-modal-status" id="voice-status">Provisioning voice agent...</div>
+          <button class="coach-panel-close" onclick="closeVoiceCoach()" style="position:absolute;top:12px;right:16px;font-size:24px">&times;</button>
+        </div>
+      </div>`;
+    document.body.appendChild(div);
+    modal = $('voice-modal');
+  }
+  modal.classList.add('active');
+  $('voice-status').textContent = 'Provisioning voice agent...';
+  $('voice-widget-area').innerHTML = '';
+
+  try {
+    const res = await fetch('/api/coach-voice/provision', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ run_id: state.runId })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Provisioning failed');
+    $('voice-status').textContent = data.reused ? 'Voice coach ready (reusing existing).' : 'Voice coach ready.';
+    $('voice-widget-area').innerHTML = `
+      <elevenlabs-convai agent-id="${esc(data.agent_id)}"></elevenlabs-convai>`;
+    // Load ElevenLabs widget script if not already loaded
+    if (!document.querySelector('script[src*="elevenlabs.io/convai-widget"]')) {
+      const s = document.createElement('script');
+      s.src = 'https://elevenlabs.io/convai-widget/index.js';
+      s.async = true;
+      document.body.appendChild(s);
+    }
+  } catch (e) {
+    $('voice-status').textContent = 'Error: ' + e.message;
+  }
+}
+function closeVoiceCoach() { const m = $('voice-modal'); if (m) m.classList.remove('active'); }
+
+// Expose for inline handlers
+window.toggleStrategy = toggleStrategy;
+window.toggleAtomType = toggleAtomType;
+window.toggleCustom = toggleCustom;
+window.saveCustom = saveCustom;
+window.onProceed = onProceed;
+window.onAdvisorStorm = onAdvisorStorm;
+window.closeStormModal = closeStormModal;
+window.openCoachChat = openCoachChat;
+window.closeCoachChat = closeCoachChat;
+window.sendCoachMsg = sendCoachMsg;
+window.openVoiceCoach = openVoiceCoach;
+window.closeVoiceCoach = closeVoiceCoach;
+
+boot();
+</script>
+</body>
+</html>

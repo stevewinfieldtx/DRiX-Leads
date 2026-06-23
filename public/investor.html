@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DRiX Investor</title>
+<style>
+  :root{
+    --navy:#1f3864; --navy2:#2e5496; --gold:#b8860b; --gold2:#d8a93a;
+    --ink:#1a1d24; --muted:#6b7280; --line:#e3e7ee; --bg:#f6f8fb; --card:#ffffff;
+    --good:#1f7a4d; --warn:#9a6a00; --bad:#9a2a2a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--ink);}
+  header{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;padding:22px 28px;}
+  header h1{margin:0;font-size:22px;letter-spacing:.2px}
+  header .tag{margin-top:4px;font-size:13px;color:#cdd8ee}
+  header .tag b{color:var(--gold2)}
+  .wrap{max-width:1060px;margin:0 auto;padding:24px 20px 60px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px;box-shadow:0 1px 2px rgba(20,30,50,.04)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  label{display:block;font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+  input[type=text]{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:#fbfcfe}
+  input[type=text]:focus{outline:none;border-color:var(--navy2);background:#fff}
+  .row{display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap;margin-top:8px}
+  .subcard{border:1px solid var(--line);border-radius:11px;padding:16px;margin-bottom:14px;background:#fbfcfe}
+  .subcard.solution{border-left:4px solid var(--gold)}
+  .subcard.individual{border-left:4px solid var(--navy2)}
+  .subcard.firm{border-left:4px solid var(--good)}
+  .subcard h3{margin:0 0 12px;font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--navy);display:flex;align-items:center;gap:8px}
+  .subcard h3 .opt{font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.3px;text-transform:none}
+  .subcard h3 .req{font-size:10px;font-weight:700;color:var(--gold);letter-spacing:.3px}
+  .run{margin-top:6px;background:var(--gold);color:#fff;border:0;border-radius:10px;padding:13px 26px;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:.2px}
+  .run:hover{background:#a5780a}
+  .run:disabled{opacity:.5;cursor:not-allowed}
+  .hint{font-size:12px;color:var(--muted);margin-top:8px}
+  .stage{display:none}
+  .stage.show{display:block}
+  .phases{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;color:#334}
+  .phase{padding:6px 0;border-bottom:1px dashed var(--line);display:flex;gap:10px;align-items:center}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--gold2);flex:0 0 auto;animation:pulse 1s infinite}
+  .phase.done .dot{background:var(--good);animation:none}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .counts{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px}
+  .chip{background:#eef2f9;border:1px solid var(--line);border-radius:20px;padding:6px 13px;font-size:13px;font-weight:600;color:var(--navy)}
+  .chip b{color:var(--gold)}
+  .brief h2{font-size:15px;color:var(--navy);text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--gold);padding-bottom:6px;margin:26px 0 12px}
+  .brief h3.sub{font-size:12px;color:var(--navy2);text-transform:uppercase;letter-spacing:.4px;margin:14px 0 6px;font-weight:700}
+  .memo-head{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:8px}
+  .memo-head .who{font-size:20px;font-weight:800;color:var(--navy)}
+  .memo-head .who small{display:block;font-size:12px;color:var(--muted);font-weight:600;margin-top:3px;text-transform:none;letter-spacing:0}
+  .para{font-size:14px;line-height:1.55;margin:6px 0 12px}
+  .k{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-top:8px}
+  .v{font-size:14px;margin:2px 0 10px;line-height:1.5}
+  ul.tags{list-style:none;padding:0;margin:4px 0 12px;display:flex;flex-wrap:wrap;gap:7px}
+  ul.tags li{background:#eef2f9;border-radius:7px;padding:5px 10px;font-size:13px}
+  ul.bullets{margin:4px 0 12px;padding-left:20px}
+  ul.bullets li{font-size:14px;margin-bottom:5px;line-height:1.45}
+  ul.bullets.good li::marker{color:var(--good)}
+  ul.bullets.bad li::marker{color:var(--bad)}
+  .scoregrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:10px 0 4px}
+  .scorecell{border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:#fbfcfe}
+  .scorecell .lbl{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .scorecell .val{font-size:24px;font-weight:800;color:var(--navy);line-height:1.1}
+  .scorecell .val span{font-size:13px;color:var(--muted);font-weight:600}
+  .scorecell.overall{background:var(--navy);border-color:var(--navy)}
+  .scorecell.overall .lbl{color:#cdd8ee}
+  .scorecell.overall .val{color:#fff}
+  .scorecell.overall .val span{color:#aebbd6}
+  .bar{height:5px;border-radius:3px;background:#e3e7ee;margin-top:6px;overflow:hidden}
+  .bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--navy2),var(--gold2))}
+  .pair{border:1px solid var(--line);border-left:5px solid var(--navy2);border-radius:8px;padding:11px 14px;margin-bottom:9px;background:#f6f9ff}
+  .pair .a{font-weight:700;color:var(--navy);font-size:14px}
+  .pair .b{font-size:14px;margin-top:3px}
+  .pair .c{font-size:13px;color:var(--muted);margin-top:4px;font-style:italic}
+  .opening{background:var(--navy);color:#fff;border-radius:10px;padding:16px 18px;font-size:15px;line-height:1.55}
+  .gaps{color:var(--warn)}
+  .conf{font-size:12px;font-weight:700;padding:3px 9px;border-radius:20px}
+  .conf.high{background:#e4f4ea;color:var(--good)} .conf.medium{background:#fdf3df;color:var(--warn)} .conf.low{background:#fbe9e9;color:var(--bad)}
+  .verdict{display:inline-block;font-size:14px;font-weight:800;padding:8px 16px;border-radius:9px;text-transform:uppercase;letter-spacing:.5px}
+  .verdict.go{background:#e4f4ea;color:var(--good)}
+  .verdict.maybe{background:#fdf3df;color:var(--warn)}
+  .verdict.no{background:#fbe9e9;color:var(--bad)}
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:0 24px}
+  @media(max-width:760px){.twocol{grid-template-columns:1fr}.grid{grid-template-columns:1fr}}
+  .err{background:#fbe9e9;border:1px solid #f0c4c4;color:var(--bad);padding:12px 14px;border-radius:9px;font-size:14px;margin-top:12px}
+  .adv{margin-top:10px;font-size:12px;color:var(--muted)}
+  details summary{cursor:pointer;color:var(--navy2);font-size:13px;font-weight:600}
+</style>
+</head>
+<body>
+<header>
+  <h1>DRiX Investor</h1>
+  <div class="tag">Profile the person <b>and</b> the firm. Position the raise. <b>The engine reads the room.</b></div>
+</header>
+
+<div class="wrap">
+  <div class="panel">
+    <!-- INDIVIDUAL -->
+    <div class="subcard individual">
+      <h3>Individual investor <span class="opt">— the partner / angel in the room (optional)</span></h3>
+      <div class="grid">
+        <div>
+          <label>Public page (bio, interview, talk, posts)</label>
+          <input id="individual_url" type="text" placeholder="https://…  (LinkedIn won't scrape — use a content-rich page)" />
+        </div>
+        <div>
+          <label>Name (optional)</label>
+          <input id="individual_name" type="text" placeholder="Dr. Warren Linger" />
+        </div>
+      </div>
+    </div>
+
+    <!-- FIRM -->
+    <div class="subcard firm">
+      <h3>Fund / Firm <span class="opt">— the fund's thesis &amp; mandate (optional)</span></h3>
+      <div class="grid">
+        <div>
+          <label>Firm page (thesis, portfolio, team)</label>
+          <input id="firm_url" type="text" placeholder="https://fund.com" />
+        </div>
+        <div>
+          <label>Firm name (optional)</label>
+          <input id="firm_name" type="text" placeholder="Linger Capital" />
+        </div>
+      </div>
+    </div>
+
+    <!-- SOLUTION -->
+    <div class="subcard solution">
+      <h3>Your solution <span class="req">— required</span></h3>
+      <label>Site or deck URL</label>
+      <input id="solution_url" type="text" placeholder="https://wintechpartners.com" />
+    </div>
+
+    <button class="run" id="run">Run DRiX Investor →</button>
+    <div class="hint">Provide an individual, a firm, or both. The engine decomposes each into 9D-tagged atoms and builds a confidential briefing memo: investor psychology, fit scores, positioning, meeting tactics, and a final recommendation. When you provide both, it analyzes the person <b>and</b> the firm — and where they reinforce or conflict.</div>
+
+    <details class="adv"><summary>Advanced</summary>
+      <div class="row" style="margin-top:10px">
+        <div style="flex:1;min-width:260px">
+          <label>API base (leave blank = same server)</label>
+          <input id="api_base" type="text" placeholder="" />
+        </div>
+        <label style="font-weight:600;color:var(--ink);text-transform:none;letter-spacing:0">
+          <input type="checkbox" id="refresh" /> Force fresh ingest (ignore cache)
+        </label>
+      </div>
+    </details>
+  </div>
+
+  <div class="panel stage" id="liveStage">
+    <h2 style="margin-top:0;font-size:14px;color:var(--navy);letter-spacing:.5px">LIVE</h2>
+    <div class="phases" id="phases"></div>
+    <div class="counts" id="counts"></div>
+    <div id="errBox"></div>
+  </div>
+
+  <div class="panel stage brief" id="briefStage"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+function phaseEl(msg){
+  const d = document.createElement('div'); d.className='phase';
+  d.innerHTML = '<span class="dot"></span><span>'+esc(msg)+'</span>';
+  $('phases').appendChild(d); return d;
+}
+function esc(s){return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function safeJSON(s){ try{return JSON.parse(s);}catch(e){return {};} }
+const arr = x => Array.isArray(x) ? x : (x ? [x] : []);
+
+$('run').addEventListener('click', run);
+
+async function run(){
+  const individual_url = $('individual_url').value.trim();
+  const firm_url = $('firm_url').value.trim();
+  const solution_url = $('solution_url').value.trim();
+  if(!solution_url){ alert('Need your solution URL.'); return; }
+  if(!individual_url && !firm_url){ alert('Provide at least one investor URL — an individual, a firm, or both.'); return; }
+  const apiBase = $('api_base').value.trim().replace(/\/+$/,'');
+
+  $('run').disabled = true;
+  $('liveStage').classList.add('show');
+  $('briefStage').classList.remove('show'); $('briefStage').innerHTML='';
+  $('phases').innerHTML=''; $('counts').innerHTML=''; $('errBox').innerHTML='';
+  let cur = phaseEl('Starting…');
+
+  const refresh = $('refresh').checked || undefined;
+  const body = {
+    solution_url,
+    individual_url: individual_url || undefined,
+    individual_name: $('individual_name').value.trim() || undefined,
+    firm_url: firm_url || undefined,
+    firm_name: $('firm_name').value.trim() || undefined,
+    refresh_investor: refresh,
+    refresh_solution: refresh,
+  };
+
+  try{
+    const res = await fetch(apiBase + '/api/investor-flow', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+    });
+    if(!res.ok){ const t = await res.text(); throw new Error('HTTP '+res.status+' — '+t.slice(0,300)); }
+
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf='';
+    while(true){
+      const {done, value} = await reader.read();
+      if(done) break;
+      buf += dec.decode(value, {stream:true});
+      let i;
+      while((i = buf.indexOf('\n\n')) >= 0){
+        const block = buf.slice(0,i); buf = buf.slice(i+2);
+        let ev=null, data='';
+        block.split('\n').forEach(line=>{
+          if(line.startsWith('event:')) ev = line.slice(6).trim();
+          else if(line.startsWith('data:')) data += line.slice(5).trim();
+        });
+        if(ev) handle(ev, data ? safeJSON(data) : {}, ()=>{cur.classList.add('done');});
+      }
+    }
+  }catch(err){
+    $('errBox').innerHTML = '<div class="err">'+esc(err.message)+'</div>';
+  }finally{
+    $('run').disabled = false;
+  }
+
+  function handle(ev, d, markDone){
+    if(ev==='phase'){ markDone(); cur = phaseEl(d.message || d.phase); }
+    else if(ev==='atoms'){
+      const chips = [];
+      const mk = (obj, fallback) => {
+        if(!obj) return;
+        const n = obj.target && obj.target.name ? obj.target.name : fallback;
+        const c = obj.atoms ? obj.atoms.length : 0;
+        chips.push('<span class="chip">'+esc(n)+': <b>'+c+'</b> atoms</span>');
+      };
+      mk(d.individual, 'Individual');
+      mk(d.firm, 'Firm');
+      mk(d.solution, 'Solution');
+      $('counts').innerHTML = chips.join('');
+    }
+    else if(ev==='positioning'){ markDone(); renderBrief(d.brief); }
+    else if(ev==='done'){ markDone(); const s=phaseEl('Done'+(d.elapsed_ms?(' — '+(d.elapsed_ms/1000).toFixed(1)+'s'):'')); s.classList.add('done'); }
+    else if(ev==='error'){ $('errBox').innerHTML = '<div class="err">'+esc(d.error||'Unknown error')+'</div>'; }
+  }
+}
+
+// ── Renderers ──
+function pPara(label, text){ return text ? '<div class="k">'+esc(label)+'</div><div class="para">'+esc(text)+'</div>' : ''; }
+function pBullets(label, items, cls){
+  const a = arr(items); if(!a.length) return '';
+  return (label?'<h3 class="sub">'+esc(label)+'</h3>':'')+'<ul class="bullets'+(cls?' '+cls:'')+'">'+a.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>';
+}
+function pTags(label, items){
+  const a = arr(items); if(!a.length) return '';
+  return '<div class="k">'+esc(label)+'</div><ul class="tags">'+a.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>';
+}
+function scoreCell(lbl, v, overall){
+  if(v==null) return '';
+  const pct = Math.max(0,Math.min(100, (Number(v)||0)*10));
+  return '<div class="scorecell'+(overall?' overall':'')+'"><div class="lbl">'+esc(lbl)+'</div>'+
+         '<div class="val">'+esc(v)+'<span>/10</span></div>'+
+         '<div class="bar"><i style="width:'+pct+'%"></i></div></div>';
+}
+
+function renderBrief(b){
+  if(!b){ $('briefStage').innerHTML = '<div class="err">No brief returned.</div>'; $('briefStage').classList.add('show'); return; }
+  const s = b.subjects || {};
+  const conf = (b.confidence||'').toLowerCase();
+  let h = '';
+
+  // Head
+  const whoBits = [];
+  if(s.individual_name) whoBits.push(esc(s.individual_name));
+  if(s.firm_name) whoBits.push(esc(s.firm_name));
+  const who = whoBits.length ? whoBits.join('  ·  ') : 'Investor';
+  h += '<div class="memo-head"><div class="who">'+who+
+       '<small>Confidential briefing memo · positioning '+esc(s.solution_name||'your solution')+'</small></div>'+
+       (conf?'<span class="conf '+esc(conf)+'">'+esc(b.confidence)+' confidence</span>':'')+'</div>';
+
+  // 1. Executive summary
+  const ex = b.executive_summary || {};
+  if(ex.how_they_think || ex.does_it_fit || ex.highest_leverage_angle){
+    h += '<h2>1 · Executive Summary</h2>';
+    h += pPara('How they think', ex.how_they_think);
+    h += pPara('Does it fit', ex.does_it_fit);
+    h += pPara('Highest-leverage angle', ex.highest_leverage_angle);
+  }
+
+  // Fit scores
+  const fs = b.fit_scores || {};
+  if(Object.keys(fs).length){
+    h += '<h3 class="sub">Fit scores</h3><div class="scoregrid">';
+    h += scoreCell('Strategic', fs.strategic);
+    h += scoreCell('Stage', fs.stage);
+    h += scoreCell('Market', fs.market);
+    h += scoreCell('Founder', fs.founder);
+    h += scoreCell('Business model', fs.business_model);
+    h += scoreCell('Long-term', fs.long_term);
+    h += scoreCell('Overall', fs.overall, true);
+    h += '</div>';
+  }
+
+  // 2. Investor profile
+  const ip = b.investor_profile || {};
+  if(Object.keys(ip).length){
+    h += '<h2>2 · Investor Profile</h2>';
+    h += pPara('Investment philosophy', ip.investment_philosophy);
+    h += pBullets('Decision-making style', ip.decision_making_style);
+    h += pBullets('Personality &amp; behavioral style', ip.personality_behavioral);
+    h += pBullets('Likely red flags', ip.red_flags, 'bad');
+    h += pBullets('Hidden motivators', ip.hidden_motivators, 'good');
+    if(ip.individual_vs_firm) h += pPara('Individual vs. firm dynamic', ip.individual_vs_firm);
+  }
+
+  // 3. Company fit
+  const cf = b.company_fit || {};
+  if(Object.keys(cf).length){
+    h += '<h2>3 · Company Fit</h2>';
+    h += '<div class="twocol"><div>'+pBullets('Strong alignment', cf.strong_alignment, 'good')+'</div>'+
+         '<div>'+pBullets('Weak alignment', cf.weak_alignment, 'bad')+'</div></div>';
+    h += pBullets('What must be proven', cf.must_prove);
+    h += pPara('Strategic reframing', cf.strategic_reframing);
+  }
+
+  // 4. Positioning
+  const po = b.positioning || {};
+  if(Object.keys(po).length){
+    h += '<h2>4 · Positioning Strategy</h2>';
+    if(po.one_sentence) h += '<div class="opening">“'+esc(po.one_sentence)+'”</div>';
+    h += pPara('Strategic narrative', po.narrative);
+    h += '<div class="twocol"><div>'+pPara('Why now', po.why_now)+pPara('Defensibility', po.defensibility)+'</div>'+
+         '<div>'+pPara('Competitive framing', po.competitive_framing)+pPara('Growth narrative', po.growth)+'</div></div>';
+  }
+
+  // 5. Meeting psychology
+  const mp = b.meeting_psychology || {};
+  if(Object.keys(mp).length){
+    h += '<h2>5 · Meeting Psychology</h2>';
+    h += pPara('How to start', mp.how_to_start);
+    h += pTags('Keep returning to', mp.keep_returning_to);
+    h += '<div class="twocol"><div>'+pBullets('What makes them lean in', mp.make_them_lean_in, 'good')+'</div>'+
+         '<div>'+pBullets('What loses them', mp.what_loses_them, 'bad')+'</div></div>';
+    const pb = arr(mp.handling_pushback);
+    if(pb.length){
+      h += '<h3 class="sub">Handling pushback</h3>';
+      pb.forEach(p=>{
+        h += '<div class="pair"><div class="a">'+esc(p.objection||'')+'</div>'+
+             (p.really_testing?'<div class="c">Really testing: '+esc(p.really_testing)+'</div>':'')+
+             (p.response?'<div class="b">→ '+esc(p.response)+'</div>':'')+'</div>';
+      });
+    }
+    h += pTags('Optimal conversation style', mp.optimal_style);
+  }
+
+  // 6. Talking points
+  const tp = b.talking_points || {};
+  if(Object.keys(tp).length){
+    h += '<h2>6 · High-Impact Talking Points</h2>';
+    h += pBullets('Talking points', tp.talking_points);
+    h += pBullets('Questions to ask the investor', tp.questions_to_ask);
+    h += pBullets('Strategic insights likely to impress', tp.strategic_insights, 'good');
+    h += pTags('Phrases / concepts that resonate', tp.resonant_phrases);
+  }
+
+  // 7. Pitch guidance
+  const pg = b.pitch_guidance || {};
+  if(Object.keys(pg).length){
+    h += '<h2>7 · Investor-Specific Pitch Guidance</h2>';
+    h += '<div class="twocol"><div>'+pBullets('Emphasize', pg.emphasize, 'good')+'</div>'+
+         '<div>'+pBullets('De-emphasize', pg.de_emphasize)+'</div></div>';
+    h += pBullets('Avoid completely', pg.avoid, 'bad');
+    h += pPara('Slide that matters most', pg.most_important_slide);
+    h += pPara('Metric that matters most', pg.most_important_metric);
+    h += pPara('Ambition that resonates', pg.ambition_that_resonates);
+  }
+
+  // 8. Operating guide
+  const og = b.operating_guide || {};
+  if(Object.keys(og).length){
+    h += '<h2>8 · Meeting Operating Guide</h2>';
+    if(og.opening_script){ h += '<div class="k">Opening script</div><div class="opening">“'+esc(og.opening_script)+'”</div>'; }
+    h += pTags('Core conviction loop', og.core_conviction_loop);
+    h += pPara('Emotional goal', og.emotional_goal);
+    h += pPara('Most important insight', og.most_important_insight);
+    const fr = og.final_recommendation || {};
+    if(fr.verdict){
+      const v = fr.verdict.toLowerCase();
+      const cls = v.includes('aggressive')?'go' : (v.includes('avoid')||v.includes('deprioritize'))?'no' : 'maybe';
+      h += '<div class="k">Final recommendation</div><div style="margin:4px 0 10px"><span class="verdict '+cls+'">'+esc(fr.verdict)+'</span></div>';
+      if(fr.why) h += '<div class="para">'+esc(fr.why)+'</div>';
+    }
+  }
+
+  // Gaps
+  if(arr(b.gaps).length){ h += '<h2>Honest gaps</h2><ul class="tags gaps">'+arr(b.gaps).map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>'; }
+
+  $('briefStage').innerHTML = h;
+  $('briefStage').classList.add('show');
+}
+</script>
+</body>
+</html>
