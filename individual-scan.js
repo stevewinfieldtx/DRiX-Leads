@@ -849,7 +849,7 @@ async function scanIndividual({ linkedin_url, email, title, name, company_url, t
         provider: { sort: 'throughput' }, // route to the fastest provider for this model
         messages: [
           { role: 'system', content: PSYCHOGRAPHIC_PROMPT },
-          { role: 'user', content: `Analyze this individual and produce a CONFIDENCE-SCORED psychographic intelligence profile. Every claim must have a confidence percentage and basis.\n\nENRICHED DATA:\n\n${JSON.stringify(enrichmentPackage, null, 2)}\n\nINSTRUCTIONS:\n1. Start with VERIFIED FACTS from Apollo/web data. These are your foundation (85-100% confidence).\n2. Build STRONG INFERENCES from verified facts + your knowledge of the person/company/industry (70-84%).\n3. Add MODERATE INFERENCES where role + industry patterns suggest likely behaviors (50-69%).\n4. Be HONEST about SPECULATIVE claims — label them clearly (25-49%).\n5. If OSINT data is present, note the _WARNING field. Username matches are UNVERIFIED. Do not treat them as confirmed identity.\n6. Use your own knowledge FREELY but label it. If you know this company is a community bank in Texas, say so and use it.\n7. The reliability_summary at the end is MANDATORY — tell the rep what's solid and what's a guess.\n8. NEVER present an inference as a fact. A rep who walks in calibrated beats one who walks in overconfident.${enrichmentPackage.cultural_intelligence ? `\n9. CULTURAL INTELLIGENCE is available from TheCultureSync. The prospect is in ${enrichmentPackage.cultural_intelligence.target_country} (${enrichmentPackage.cultural_intelligence.cultural_baseline} baseline, ${enrichmentPackage.cultural_intelligence.region} region). Factor cultural norms into your sales_strategy: adapt pitch_angles for their communication style, adjust conversation_starters for cultural appropriateness, note phrases_to_use/avoid that respect their cultural context, and tailor meeting/negotiation advice. Include a "cultural_sales_guidance" section in your output with: country, baseline, key_adaptations (3-5 specific things to do differently), email_approach, meeting_approach, and trust_building_strategy. ${enrichmentPackage.cultural_intelligence.cross_culture_warning ? 'WARNING: ' + enrichmentPackage.cultural_intelligence.cross_culture_warning : ''}` : ''}` },
+          { role: 'user', content: `Produce the JSON profile defined in your system instructions for this individual. Ground every claim in the ENRICHED DATA below; use your own knowledge but stay accurate; treat OSINT username matches as UNVERIFIED. Output ONLY the JSON object - no prose, no code fences, no trailing commas.\n\nENRICHED DATA:\n\n${JSON.stringify(enrichmentPackage, null, 2)}` },
         ],
         response_format: { type: 'json_object' },
         temperature: 0.3,
@@ -867,8 +867,22 @@ async function scanIndividual({ linkedin_url, email, title, name, company_url, t
     const content = data?.choices?.[0]?.message?.content;
     if (!content) throw new Error('Empty LLM response');
 
-    const cleaned = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-    const parsed = JSON.parse(cleaned);
+    // Robust parse: strip code fences, isolate the outermost JSON object, and
+    // repair the most common LLM mistakes (trailing commas, smart quotes) before
+    // giving up. This is what was failing with "Unexpected token , in JSON".
+    let cleaned = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+    const _a = cleaned.indexOf('{'), _b = cleaned.lastIndexOf('}');
+    if (_a !== -1 && _b > _a) cleaned = cleaned.slice(_a, _b + 1);
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch (parseErr) {
+      const repaired = cleaned
+        .replace(/,(\s*[}\]])/g, '$1')          // trailing commas before } or ]
+        .replace(/[“”]/g, '"')          // smart double quotes
+        .replace(/[‘’]/g, "'");         // smart single quotes
+      parsed = JSON.parse(repaired);
+    }
 
     const elapsed = Date.now() - startTime;
     console.log(`\n${'═'.repeat(60)}`);
