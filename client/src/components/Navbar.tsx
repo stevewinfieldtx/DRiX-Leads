@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router'
-import { Menu, X, Zap } from 'lucide-react'
+import { Menu, X, Zap, User } from 'lucide-react'
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
@@ -57,8 +57,15 @@ export default function Navbar() {
             ))}
           </div>
 
-          {/* Launch Button — pushed to the right */}
-          <div className="hidden md:block ml-auto">
+          {/* Right side — Profile + Launch */}
+          <div className="hidden md:flex items-center gap-2 ml-auto">
+            <a
+              href="/account"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold tracking-wide uppercase text-drix-dim hover:text-drix-text hover:bg-white/5 transition-all duration-200"
+            >
+              <User size={14} />
+              Profile
+            </a>
             <Link
               to="/app"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold hover:shadow-glow transition-all duration-300 hover:-translate-y-0.5"
@@ -96,6 +103,12 @@ export default function Navbar() {
                 {link.label}
               </Link>
             ))}
+            <a
+              href="/account"
+              className="flex items-center gap-2 px-4 py-3 rounded-lg text-sm font-semibold text-drix-dim hover:text-drix-text hover:bg-white/5 transition-colors"
+            >
+              <User size={14} /> Profile &amp; voice (CPP)
+            </a>
             <Link
               to="/app"
               className="block mt-2 px-4 py-3 rounded-lg text-sm font-bold text-center"
