@@ -128,7 +128,7 @@ async function checkPlatform(username, platform) {
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
+    const timeout = setTimeout(() => controller.abort(), 3000);
 
     const response = await fetch(url, {
       method: 'HEAD',
@@ -153,7 +153,7 @@ async function checkPlatform(username, platform) {
     if (platform.errorType === 'response_text') {
       const getResponse = await fetch(url, {
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(3000),
       });
       const text = await getResponse.text();
       const notFound = text.includes(platform.errorText);
@@ -178,11 +178,12 @@ async function checkPlatform(username, platform) {
  * @returns {Object} { usernames: string[], found: [{platform, url, username, category}], platformsChecked: number }
  */
 async function discoverUsernames(name, linkedinUrl, email, opts = {}) {
-  const maxConcurrent = opts.maxConcurrent || 10;
+  const maxConcurrent = opts.maxConcurrent || 20;
   const platforms = opts.platforms || USERNAME_PLATFORMS;
   const startTime = Date.now();
 
-  const usernames = deriveUsernames(name, linkedinUrl, email);
+  // Speed: only test the 3 most-likely username variants (was up to 6 × 40 platforms).
+  const usernames = deriveUsernames(name, linkedinUrl, email).slice(0, 3);
   if (usernames.length === 0) {
     console.log('[osint] No usernames derivable — skipping discovery');
     return { usernames: [], found: [], platformsChecked: 0, timeMs: 0 };
@@ -266,7 +267,7 @@ const EMAIL_PLATFORMS = [
       const hash = crypto.createHash('md5').update(email.toLowerCase().trim()).digest('hex');
       const url = `https://www.gravatar.com/avatar/${hash}?d=404`;
       try {
-        const res = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
+        const res = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(3000) });
         return { registered: res.status === 200, url: `https://gravatar.com/${hash}`, hasAvatar: res.status === 200 };
       } catch { return null; }
     }
@@ -279,7 +280,7 @@ const EMAIL_PLATFORMS = [
       try {
         const res = await fetch(`https://api.github.com/search/users?q=${encodeURIComponent(email)}+in:email`, {
           headers: { 'User-Agent': 'DRiX-OSINT/1.0' },
-          signal: AbortSignal.timeout(5000),
+          signal: AbortSignal.timeout(3000),
         });
         if (!res.ok) return null;
         const data = await res.json();
@@ -302,7 +303,7 @@ const EMAIL_PLATFORMS = [
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: `user_login=${encodeURIComponent(email)}`,
           redirect: 'manual',
-          signal: AbortSignal.timeout(5000),
+          signal: AbortSignal.timeout(3000),
         });
         // If redirected to "check your email" → registered
         return { registered: res.status === 302 || res.status === 200 };
@@ -316,7 +317,7 @@ const EMAIL_PLATFORMS = [
       try {
         const res = await fetch(`https://spclient.wg.spotify.com/signup/public/v1/account?validate=1&email=${encodeURIComponent(email)}`, {
           headers: { 'User-Agent': 'Mozilla/5.0' },
-          signal: AbortSignal.timeout(5000),
+          signal: AbortSignal.timeout(3000),
         });
         if (!res.ok) return null;
         const data = await res.json();
@@ -333,7 +334,7 @@ const EMAIL_PLATFORMS = [
       try {
         const res = await fetch(`https://haveibeenpwned.com/api/v3/breachedaccount/${encodeURIComponent(email)}?truncateResponse=true`, {
           headers: { 'User-Agent': 'DRiX-OSINT/1.0' },
-          signal: AbortSignal.timeout(5000),
+          signal: AbortSignal.timeout(3000),
         });
         if (res.status === 200) {
           const breaches = await res.json();
@@ -370,7 +371,7 @@ const EMAIL_PLATFORMS = [
         // Google People API public profile (doesn't require auth for basic info)
         const res = await fetch(`https://www.google.com/s2/photos/public/AIbEiAIAAABECKjR0oDA0o_${email}`, {
           method: 'HEAD',
-          signal: AbortSignal.timeout(5000),
+          signal: AbortSignal.timeout(3000),
         });
         return { registered: true, hasPhoto: res.status === 200 };
       } catch { return { registered: true, note: 'Gmail address — account exists by definition' }; }

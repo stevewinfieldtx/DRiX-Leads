@@ -1442,8 +1442,16 @@ app.post('/api/demo-flow', async (req, res) => {
             key_insight: individualResult.key_insight || null
           },
           summary: individualResult.summary || '',
-          atoms: individualResult.atoms || [],
+          key_insight: individualResult.key_insight || null,
+          opening_hook: individualResult.opening_hook || null,
+          conversation_starters: individualResult.conversation_starters || [],
           pitch_angles: individualResult.pitch_angles || [],
+          objections: individualResult.objections || [],
+          company_situation: individualResult.company_situation || null,
+          phrases_to_use: individualResult.phrases_to_use || [],
+          phrases_to_avoid: individualResult.phrases_to_avoid || [],
+          sales_strategy: individualResult.sales_strategy || null,
+          atoms: individualResult.atoms || [],
           career_highlights: individualResult.career_highlights || [],
           public_signals: individualResult.public_signals || [],
           vendor_opinions: individualResult.vendor_opinions || [],
@@ -2931,7 +2939,9 @@ function buildReportHtml(run, opts = {}) {
 
   ${run.individual && want('individual') ? `
   <div class="section">
-    <h2>Individual Intelligence — ${esc(run.individual.target?.name || 'Target Individual')}</h2>
+    <h2>Individual Intelligence — ${esc(run.individual.target?.name || run.individual.individual?.name || 'Target Individual')}</h2>
+    ${(run.individual.target?.title || run.individual.target?.company) ? `<div class="meta">${esc(run.individual.target?.title || '')}${run.individual.target?.title && run.individual.target?.company ? ' — ' : ''}${esc(run.individual.target?.company || '')}</div>` : ''}
+    ${run.individual.key_insight ? `<div class="cs-health"><b>Key Insight:</b> ${esc(run.individual.key_insight)}</div>` : ''}
     <div class="group">
       <div class="group-title">Digital Footprint Summary</div>
       <div class="group-sum">${esc(run.individual.summary || '')}</div>
@@ -2945,6 +2955,11 @@ function buildReportHtml(run, opts = {}) {
           `).join('')}
         </div>` : ''}
     </div>
+    ${run.individual.opening_hook ? `<h3>Opening Hook</h3><p>${esc(run.individual.opening_hook)}</p>` : ''}
+    ${(run.individual.conversation_starters || []).length ? `<h3>Conversation Starters</h3>${(run.individual.conversation_starters || []).map(c => `<div class="q"><div class="q-text">${esc(typeof c === 'string' ? c : c.topic || '')}</div>${(c && c.basis) ? `<div class="q-block">${esc(c.basis)}</div>` : ''}</div>`).join('')}` : ''}
+    ${(run.individual.pitch_angles || []).length ? `<h3>Pitch Angles</h3>${(run.individual.pitch_angles || []).map(a => `<div class="q"><div class="q-text">${esc(typeof a === 'string' ? a : a.angle || '')}</div>${(a && a.basis) ? `<div class="q-block">${esc(a.basis)}</div>` : ''}</div>`).join('')}` : ''}
+    ${(run.individual.objections || []).length ? `<h3>Likely Objections &amp; Responses</h3>${(run.individual.objections || []).map(o => `<div class="q"><div class="q-text">${esc(typeof o === 'string' ? o : o.objection || '')}</div>${(o && o.response) ? `<div class="q-resp q-pos"><b>Response</b>${esc(o.response)}</div>` : ''}</div>`).join('')}` : ''}
+    ${run.individual.company_situation ? `<h3>Company Situation</h3>${run.individual.company_situation.strategic_direction ? `<p><b>Direction:</b> ${esc(run.individual.company_situation.strategic_direction)}</p>` : ''}${run.individual.company_situation.financial_health ? `<p><b>Financial health:</b> ${esc(run.individual.company_situation.financial_health)}</p>` : ''}` : ''}
   </div>` : ''}
 
   ${want('pains') ? `

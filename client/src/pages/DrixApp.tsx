@@ -636,11 +636,18 @@ export default function DrixApp() {
 
   const renderIndividual = (data: any) => {
     if (!data) return
-    const name = data.target?.name || 'Target Individual'
-    const title = data.target?.title || ''
-    const company = data.target?.company || ''
-    const keyInsight = data.target?.key_insight || ''
+    // Robust to both shapes: the demo-flow's normalized object (data.target.*)
+    // and the raw scanIndividual result (data.individual.*, top-level fields).
+    const ind = data.individual || {}
+    const name = data.target?.name || ind.name || data.name || 'Target Individual'
+    const title = data.target?.title || ind.title || ''
+    const company = data.target?.company || ind.company || data.company_situation?.company_full_name || ''
+    const keyInsight = data.key_insight || data.target?.key_insight || ind.key_insight || ''
+    const openingHook = data.opening_hook || ''
+    const conversationStarters = data.conversation_starters || []
     const pitchAngles = data.pitch_angles || []
+    const objections = data.objections || []
+    const companySituation = data.company_situation || null
     const careerHighlights = data.career_highlights || []
     const publicSignals = data.public_signals || []
     const vendorOpinions = data.vendor_opinions || []
@@ -655,11 +662,16 @@ export default function DrixApp() {
     // (no atoms and no real content), hide the section entirely.
     const hasSubstance =
       atomCount > 0 ||
+      !!keyInsight ||
+      !!openingHook ||
+      conversationStarters.length > 0 ||
+      objections.length > 0 ||
+      pitchAngles.length > 0 ||
       careerHighlights.length > 0 ||
       publicSignals.length > 0 ||
       painSignals.length > 0 ||
-      pitchAngles.length > 0 ||
       vendorOpinions.length > 0 ||
+      (typeof data.summary === 'string' && data.summary.trim().length > 0) ||
       data.scan?.recognized === true
     if (!hasSubstance) {
       setShowIndividual(false)
@@ -713,10 +725,31 @@ export default function DrixApp() {
           <div style="font-size:14px;line-height:1.5;">${esc(keyInsight)}</div>
         </div>` : ''}
         <div style="font-size:13px;color:var(--text-dim);margin-bottom:14px;line-height:1.6;">${esc(data.summary || '')}</div>
+        ${openingHook ? `
+        <div style="background:rgba(61,220,132,0.06);border-left:3px solid var(--green);padding:10px 14px;border-radius:0 8px 8px 0;margin-bottom:14px;">
+          <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--green);margin-bottom:4px;">Opening Hook</div>
+          <div style="font-size:13px;line-height:1.6;">${esc(openingHook)}</div>
+        </div>` : ''}
+        ${conversationStarters.length ? `
+        <div style="margin-bottom:14px;">
+          <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--cyan);margin-bottom:8px;">Conversation Starters (${conversationStarters.length})</div>
+          ${conversationStarters.map((c: any) => `<div style="background:var(--surface-2);border:1px solid var(--dx-border);border-radius:6px;padding:8px 10px;margin:4px 0;font-size:12px;line-height:1.5">${esc(typeof c === 'string' ? c : c.topic || '')}${(c && c.basis) ? `<div style="font-size:11px;color:var(--text-muted);margin-top:3px;">${esc(c.basis)}</div>` : ''}</div>`).join('')}
+        </div>` : ''}
         ${pitchAngles.length ? `
         <div style="margin-bottom:14px;">
-          <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--green);margin-bottom:8px;">Conversation Openers (${pitchAngles.length})</div>
-          ${pitchAngles.map((a: string) => `<div style="background:rgba(61,220,132,0.06);border:1px solid rgba(61,220,132,0.2);border-radius:6px;padding:8px 10px;margin:4px 0;font-size:12px;line-height:1.5">${esc(a)}</div>`).join('')}
+          <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--green);margin-bottom:8px;">Pitch Angles (${pitchAngles.length})</div>
+          ${pitchAngles.map((a: any) => `<div style="background:rgba(61,220,132,0.06);border:1px solid rgba(61,220,132,0.2);border-radius:6px;padding:8px 10px;margin:4px 0;font-size:12px;line-height:1.5">${esc(typeof a === 'string' ? a : a.angle || '')}${(a && a.basis) ? `<div style="font-size:11px;color:var(--text-muted);margin-top:3px;">${esc(a.basis)}</div>` : ''}</div>`).join('')}
+        </div>` : ''}
+        ${objections.length ? `
+        <div style="margin-bottom:14px;">
+          <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#f59e0b;margin-bottom:8px;">Likely Objections & Responses (${objections.length})</div>
+          ${objections.map((o: any) => `<div style="background:var(--surface-2);border:1px solid var(--dx-border);border-left:3px solid #f59e0b;border-radius:0 6px 6px 0;padding:8px 10px;margin:4px 0;font-size:12px;line-height:1.5"><div style="font-weight:700;">${esc(typeof o === 'string' ? o : o.objection || '')}</div>${(o && o.response) ? `<div style="color:var(--text-dim);margin-top:4px;"><span style="color:var(--green);font-weight:700;">→ </span>${esc(o.response)}</div>` : ''}</div>`).join('')}
+        </div>` : ''}
+        ${companySituation ? `
+        <div style="margin-bottom:14px;background:rgba(90,169,255,0.05);border:1px solid rgba(90,169,255,0.15);border-radius:8px;padding:10px 12px;">
+          <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--cyan);margin-bottom:6px;">Company Situation</div>
+          ${companySituation.strategic_direction ? `<div style="font-size:12px;line-height:1.5;margin-bottom:4px;"><strong>Direction:</strong> ${esc(companySituation.strategic_direction)}</div>` : ''}
+          ${companySituation.financial_health ? `<div style="font-size:12px;line-height:1.5;"><strong>Financial health:</strong> ${esc(companySituation.financial_health)}</div>` : ''}
         </div>` : ''}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
           ${careerHighlights.length ? `<div><div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--cyan);margin-bottom:8px;">Career Highlights (${careerHighlights.length})</div>${listItems(careerHighlights)}</div>` : ''}

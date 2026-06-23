@@ -14,6 +14,9 @@ const { runOsintEnrichment } = require('./osint-enrichment');
 
 const OPENROUTER_API_KEY  = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_MODEL_ID = process.env.OPENROUTER_MODEL_ID || 'anthropic/claude-sonnet-4.5';
+// Individual scan uses a faster model for the synthesis call (latency-sensitive).
+// Override with INDIVIDUAL_MODEL_ID; falls back to the main model if needed.
+const INDIVIDUAL_MODEL_ID = process.env.INDIVIDUAL_MODEL_ID || 'anthropic/claude-haiku-4.5';
 const APOLLO_API_KEY      = process.env.APOLLO_API_KEY || '';
 const BRAVE_API_KEY       = process.env.BRAVE_API_KEY || '';
 const CULTURESYNC_API_URL = process.env.CULTURESYNC_API_URL || 'https://theculturalsync.com';
@@ -254,96 +257,36 @@ async function deepResearch(name, company, title, companyDomain) {
   // 1a. Pure name + title search (no company dependency — catches everything)
   const discoveryResults1 = await braveSearch(`"${name}" ${title || ''}`, 10);
   results.discovery.push(...dedup(discoveryResults1));
-  await delay(800);
+  await delay(500);
 
-  // 1b. Name + company name (if we have one)
+  // Name + company name
   if (company) {
     const discoveryResults2 = await braveSearch(`"${name}" "${company}"`, 10);
     results.discovery.push(...dedup(discoveryResults2));
-    await delay(800);
+    await delay(500);
   }
 
-  // 1c. Name + company DOMAIN (this is the URL the user gave us — use it!)
-  if (companyDomain && companyDomain !== company) {
-    const discoveryResults3 = await braveSearch(`"${name}" "${companyDomain}"`, 10);
-    results.discovery.push(...dedup(discoveryResults3));
-    await delay(800);
-  }
-
-  // 1d. Search the company's OWN WEBSITE for this person (leadership pages, bios, about us)
+  // Company's own site (bio / leadership pages)
   if (companyDomain) {
     const siteResults = await braveSearch(`"${name}" site:${companyDomain}`, 10);
     results.profile_pages.push(...dedup(siteResults));
-    await delay(800);
+    await delay(500);
   }
 
-  // 1e. Profile pages (LinkedIn, TheOrg, ZoomInfo, company team pages)
+  // Profile pages (LinkedIn, TheOrg, ZoomInfo, team pages)
   const profileResults = await braveSearch(`"${name}" ${title || ''} site:linkedin.com OR site:theorg.com OR site:zoominfo.com OR leadership OR "about us"`, 10);
   results.profile_pages.push(...dedup(profileResults.filter(isProfile)));
-  await delay(800);
+  await delay(500);
 
-  // 1f. Hiring / appointment announcements (these are GOLD — they contain career history summaries)
+  // Hiring / appointment announcements - GOLD for career history
   const appointResults = await braveSearch(`"${name}" appointed OR hired OR joins OR named OR promoted ${title || ''}`, 10);
   results.pr.push(...dedup(appointResults.filter(isPR)));
   results.discovery.push(...dedup(appointResults));
-  await delay(800);
+  await delay(500);
 
-  // 1g. Certifications and credentials
-  const certResults = await braveSearch(`"${name}" certification OR certified OR CISSP OR CCSP OR PMP OR credentials`, 8);
-  results.certifications = dedup(certResults.filter(isCert));
-  results.discovery.push(...dedup(certResults));
-  await delay(800);
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 2: DEEP DIVE — now that we know who they are, find their activity
-  // ═══════════════════════════════════════════════════════════════════════
-
-  // 2a. Podcasts
-  const podResults = await braveSearch(`"${name}" podcast interview`, 10);
-  results.podcasts = dedup(podResults.filter(isPodcast));
-  await delay(800);
-
-  // 2b. Videos / talks / webinars
-  const vidResults = await braveSearch(`"${name}" video OR keynote OR webinar OR presentation`, 10);
-  results.videos = dedup(vidResults.filter(r => isVideo(r) || isConference(r)));
-  await delay(800);
-
-  // 2c. Conference speaking
-  const confResults = await braveSearch(`"${name}" speaker conference summit panel`, 10);
-  results.talks = dedup(confResults.filter(isConference));
-  await delay(800);
-
-  // 2d. News mentions (try with AND without company to cast a wider net)
+  // News mentions
   const newsResults1 = await braveNewsSearch(`"${name}" ${title || ''}`, 10);
   results.news.push(...dedup(newsResults1));
-  await delay(800);
-
-  if (company) {
-    const newsResults2 = await braveNewsSearch(`"${name}" "${company}"`, 10);
-    results.news.push(...dedup(newsResults2));
-    await delay(800);
-  }
-
-  // 2e. PR announcements from company
-  if (company) {
-    const prResults = await braveSearch(`"${company}" "${name}" press release OR announces`, 8);
-    results.pr.push(...dedup(prResults.filter(isPR)));
-    await delay(800);
-  }
-
-  // 2f. Published content / thought leadership
-  const contentResults = await braveSearch(`"${name}" author blog article OR "written by" OR contributed`, 10);
-  results.content = dedup(contentResults.filter(isContent));
-  await delay(800);
-
-  // 2g. Awards & recognition
-  const awardResults = await braveSearch(`"${name}" award OR recognized OR honored OR "top 40" OR influential`, 8);
-  results.awards = dedup(awardResults.filter(isAward));
-  await delay(800);
-
-  // 2h. Volunteer / board / community
-  const volResults = await braveSearch(`"${name}" volunteer OR "board member" OR nonprofit OR advisory OR mentor`, 8);
-  results.volunteer = dedup(volResults.filter(isVolunteer));
 
   // Dedup discovery results one final time
   const discoveryUrls = new Set();
@@ -394,93 +337,26 @@ async function deepCompanyResearch(companyName, domain) {
 
   const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 0: DISCOVER THE COMPANY — search THEIR website, find about pages
-  // ═══════════════════════════════════════════════════════════════════════
-
+  // Company website (about / leadership / products)
   if (domain) {
-    // Search the company's own website — about pages, leadership, products, services
     const siteResults = await braveSearch(`site:${domain} about OR leadership OR services OR products OR "about us"`, 10);
     results.about.push(...dedup(siteResults));
-    await delay(800);
-
-    // Investor relations page (if public)
-    const irResults = await braveSearch(`site:${domain} investor OR "investor relations" OR annual report OR SEC`, 8);
-    results.investor_relations = dedup(irResults);
-    await delay(800);
+    await delay(500);
   }
 
-  // General company overview search
+  // General overview
   const overviewResults = await braveSearch(`"${searchName}" company overview OR about OR history`, 10);
   results.about.push(...dedup(overviewResults));
-  await delay(800);
+  await delay(500);
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 1: REGULATORY & FINANCIAL FILINGS
-  // ═══════════════════════════════════════════════════════════════════════
-
-  // SEC filings (10-K, 10-Q, 8-K) — search with both name and domain
-  const secResults = await braveSearch(`"${searchName}" SEC 10-K OR 10-Q OR 8-K filing site:sec.gov`, 8);
-  results.sec_filings = dedup(secResults);
-  await delay(800);
-
-  if (altSearchName) {
-    const secResults2 = await braveSearch(`"${altSearchName}" SEC filing site:sec.gov`, 5);
-    results.sec_filings.push(...dedup(secResults2));
-    await delay(800);
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 2: RECENT NEWS & PR
-  // ═══════════════════════════════════════════════════════════════════════
-
-  // Press releases
-  const prResults = await braveNewsSearch(`"${searchName}" press release OR announces OR unveiled OR launched`, 10);
-  results.press_releases = dedup(prResults);
-  await delay(800);
-
-  // General news
+  // Recent news
   const newsResults = await braveNewsSearch(`"${searchName}"`, 10);
   results.news.push(...dedup(newsResults));
-  await delay(800);
+  await delay(500);
 
-  // Also search with domain if different
-  if (altSearchName) {
-    const newsResults2 = await braveNewsSearch(`"${altSearchName}"`, 8);
-    results.news.push(...dedup(newsResults2));
-    await delay(800);
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 3: FINANCIALS & EARNINGS
-  // ═══════════════════════════════════════════════════════════════════════
-
-  const earningsResults = await braveSearch(`"${searchName}" earnings OR revenue OR quarterly results OR annual report`, 8);
-  results.earnings = dedup(earningsResults.filter(r => /earning|revenue|profit|quarter|fiscal|financial|annual.report|growth/i.test(r.title + r.description)));
-  await delay(800);
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 4: LEADERSHIP & STRATEGIC MOVES
-  // ═══════════════════════════════════════════════════════════════════════
-
-  const leaderResults = await braveNewsSearch(`"${searchName}" CEO OR CTO OR CFO OR CIO OR VP appointed OR hired OR joins`, 8);
+  // Leadership & strategic moves
+  const leaderResults = await braveNewsSearch(`"${searchName}" CEO OR CTO OR CFO OR CIO OR VP appointed OR hired OR joins OR partnership OR acquisition`, 8);
   results.leadership = dedup(leaderResults);
-  await delay(800);
-
-  const partnerResults = await braveNewsSearch(`"${searchName}" partnership OR acquisition OR merger OR alliance OR agreement`, 8);
-  results.partnerships = dedup(partnerResults);
-  await delay(800);
-
-  const productResults = await braveNewsSearch(`"${searchName}" launches OR "new product" OR "new service" OR release OR unveils`, 8);
-  results.product_launches = dedup(productResults);
-  await delay(800);
-
-  // ═══════════════════════════════════════════════════════════════════════
-  // PHASE 5: HIRING & GROWTH SIGNALS
-  // ═══════════════════════════════════════════════════════════════════════
-
-  const hiringResults = await braveSearch(`"${searchName}" hiring OR jobs OR layoffs OR headcount OR expansion OR "open positions"`, 8);
-  results.hiring_signals = dedup(hiringResults.filter(r => /hiring|layoff|headcount|workforce|recruit|expansion|new.office|open.position|careers/i.test(r.title + r.description)));
 
   const total = Object.values(results).reduce((sum, arr) => sum + arr.length, 0);
   console.log(`[individual-scan] Company research complete: ${total} findings`);
@@ -538,133 +414,61 @@ USING ENRICHMENT DATA SECTIONS:
 - COMPANY INTELLIGENCE: Filings, press releases, earnings, leadership changes, hiring signals — use to understand company context and timing. A company hiring aggressively = different sale than one in cost-cutting mode.
 - OSINT (if present): Username matches across platforms. TREAT WITH EXTREME CAUTION. Only reference if corroborated. If you include OSINT-based inferences, explicitly mark them as "unverified — possible digital presence."
 
-OUTPUT (JSON only, no markdown fences):
+OUTPUT (JSON only, no markdown fences) — keep it TIGHT and FAST. Return ONLY these fields:
 {
   "recognized": true,
-  "overall_confidence": "<percentage — how confident you are in the TOTAL profile>",
-  "confidence_basis": "<1 sentence explaining what drove overall confidence up or down>",
+  "overall_confidence": "<percentage for the total profile>",
   "individual": {
     "name": "<full name>",
     "title": "<current role>",
-    "company": "<current company — USE FULL CORRECT NAME, not abbreviations>",
+    "company": "<current company — FULL correct name, not abbreviations>",
     "linkedin_url": "<as provided>",
     "key_insight": "<the single most important thing a salesperson should know>",
-    "key_insight_confidence": "<percentage>",
-    "key_insight_basis": "<what evidence supports this>"
+    "key_insight_confidence": "<percentage>"
   },
-  "verified_facts": [
-    {
-      "statement": "<factual claim>",
-      "confidence": "<percentage 85-100>",
-      "source": "<apollo_employment|apollo_certification|web_search|company_filing|public_record|personal_knowledge>"
-    }
-  ],
-  "strong_inferences": [
-    {
-      "statement": "<inference>",
-      "confidence": "<percentage 70-84>",
-      "basis": "<what evidence supports this inference>"
-    }
-  ],
-  "moderate_inferences": [
-    {
-      "statement": "<inference>",
-      "confidence": "<percentage 50-69>",
-      "basis": "<why this is plausible but not certain>"
-    }
-  ],
-  "speculative": [
-    {
-      "statement": "<guess>",
-      "confidence": "<percentage 25-49>",
-      "basis": "<why you're guessing this — be honest about weakness>"
-    }
-  ],
   "psychographic": {
     "archetype": "<defender|grower|optimizer|pioneer|builder>",
     "archetype_confidence": "<percentage>",
-    "archetype_evidence": ["<specific VERIFIED evidence — not OSINT>"],
-    "decision_style": "<analytical|intuitive|consensus|directive>",
-    "decision_style_confidence": "<percentage>",
-    "decision_style_evidence": "<what supports this>",
-    "risk_appetite": "<risk-seeking|calculated|risk-averse>",
-    "risk_confidence": "<percentage>",
-    "primary_motivation": "<what drives them>",
-    "motivation_confidence": "<percentage>",
-    "communication_style": "<data-driven|narrative|direct|collaborative>",
-    "engagement_approach": "<2-3 sentences: exactly HOW to approach this specific person>",
-    "engagement_confidence": "<percentage>"
+    "decision_style": "<analytical|intuitive|consensus|directive>"
   },
-  "summary": "<3-5 sentence profile — who they are, career arc, what they care about. Include confidence caveats where appropriate.>",
+  "summary": "<3-4 sentence profile — who they are, career arc, what they care about>",
   "sales_strategy": {
-    "recommended_approach": "<2-3 sentences — the core strategy>",
-    "approach_confidence": "<percentage>",
     "opening_hook": "<exact words to open — must reference something VERIFIED about them>",
-    "hook_confidence": "<percentage>",
     "conversation_starters": [
-      { "topic": "<specific topic>", "confidence": "<percentage>", "basis": "<why this will land>" }
+      { "topic": "<specific topic>", "confidence": "<percentage>", "basis": "<why it lands>" }
     ],
     "pitch_angles": [
-      { "angle": "<specific angle>", "confidence": "<percentage>", "basis": "<why this resonates with their profile>" }
+      { "angle": "<specific angle>", "confidence": "<percentage>", "basis": "<why it resonates>" }
     ],
-    "phrases_to_use": ["<words that resonate with their archetype>"],
-    "phrases_to_avoid": ["<words that will shut them down>"],
     "objections": [
-      { "objection": "<likely objection>", "confidence": "<percentage>", "response": "<specific counter>", "basis": "<why you expect this objection>" }
+      { "objection": "<likely objection>", "confidence": "<percentage>", "response": "<specific counter>", "basis": "<why you expect it>" }
     ]
   },
   "company_situation": {
     "company_full_name": "<correct full company name>",
     "industry": "<specific industry>",
     "strategic_direction": "<what the company is focused on>",
-    "strategic_confidence": "<percentage>",
-    "financial_health": "<growing|stable|contracting|restructuring>",
-    "financial_confidence": "<percentage>",
-    "recent_moves": [{ "event": "<what happened>", "confidence": "<percentage>" }],
-    "hiring_trajectory": "<expanding|stable|contracting>",
-    "relevance_to_sale": "<how company situation creates opportunity or risk>"
-  },
-  "technology_interests": [
-    { "area": "<technology area>", "confidence": "<percentage>", "basis": "<why you believe this>" }
-  ],
-  "digital_presence": {
-    "verified_accounts": ["<only accounts CONFIRMED to belong to this person — same company/bio match>"],
-    "possible_accounts": ["<OSINT matches that are UNVERIFIED — flag as possible>"],
-    "content_signals": ["<verified publications, talks, podcasts — with titles if known>"]
-  },
-  "reliability_summary": {
-    "strongest_sections": "<what parts of this profile are most reliable and why>",
-    "weakest_sections": "<what parts are most speculative and why>",
-    "what_would_improve_this": "<what additional data would increase confidence — e.g. a direct conversation, their LinkedIn activity, a mutual connection>"
+    "financial_health": "<growing|stable|contracting|restructuring>"
   },
   "atoms": [
     {
-      "atom_id": "<kebab-case-id>",
-      "type": "<career_history|certification|public_statement|thought_leadership|conference_talk|community_membership|publication|leadership_style|professional_focus|personal_signal|vendor_opinion|pain_signal|decision_pattern|psychographic_signal|company_financial|company_strategic|company_product|company_leadership|company_hiring|company_partnership|osint_unverified>",
+      "type": "<career_history|certification|public_statement|thought_leadership|leadership_style|professional_focus|pain_signal|decision_pattern|company_strategic|company_leadership|osint_unverified>",
       "claim": "<one clear sentence>",
       "evidence": "<specific data point>",
       "confidence_pct": <number 1-100>,
-      "source": "<apollo|web_search|company_intel|osint_unverified|personal_knowledge|certification_record>",
-      "d_persona": "<role category>",
-      "d_emotional_driver": "<what motivates them>",
-      "d_evidence_type": "<source type>",
-      "d_credibility": 1-5,
-      "d_industry": { "naics": "<sector>", "sic": "<division>" }
+      "source": "<apollo|web_search|company_intel|osint_unverified|personal_knowledge>"
     }
   ]
 }
 
-DISCIPLINE:
-- Generate AS MANY ATOMS AS THE DATA SUPPORTS. No artificial limit. Thoroughness over speed.
-- Every atom MUST have a confidence_pct and source. Atoms from OSINT must use type "osint_unverified" and source "osint_unverified" unless corroborated.
-- The verified_facts section should contain 10+ items if Apollo data is rich. These are your foundation.
-- strong_inferences should flow LOGICALLY from verified_facts. "CISSP + CCSP + banking CIO → evaluates through risk lens (94%)" is good.
-- NEVER put an OSINT-only inference in verified_facts or strong_inferences. It goes in moderate_inferences at best, speculative if uncorroborated.
-- technology_interests must be grounded in certifications, company industry, and role — not OSINT platform presence.
-- The reliability_summary is MANDATORY. A rep needs to know "the archetype classification is 92% because we have 13 years of employment history" vs "the technology interests are 55% because we're inferring from industry patterns."
-- conversation_starters: at least 8, each with confidence. Draw from VERIFIED career data and company situation.
-- objections: at least 6, each with confidence and basis.
-- If you would not bet money on a claim, do not put it above 70%.`;
+DISCIPLINE (optimized for a fast, focused brief — brevity is REQUIRED):
+- Build the profile from VERIFIED data (Apollo + web) and your own knowledge; stay accurate. Treat OSINT username matches as unverified — never build core conclusions on them.
+- key_insight: one sharp sentence. summary: 3-4 tight sentences.
+- conversation_starters: exactly 3. pitch_angles: exactly 3. objections: exactly 3 (each with a response).
+- atoms: 4-6 of the MOST important — never return an empty atoms array.
+- Ground archetype in verified evidence, not OSINT. If you would not bet money on a claim, do not put it above 70%.
+- MANDATORY: always fully populate individual, summary, sales_strategy (opening_hook + exactly 3 conversation_starters + 3 pitch_angles + 3 objections), company_situation, and atoms. Never return empty/missing fields for these — a thin profile is a failure.
+- Keep every field tight and punchy — a rep skims this in 30 seconds.`;
 
 // =============================================================================
 // MAIN PIPELINE
@@ -978,7 +782,10 @@ async function scanIndividual({ linkedin_url, email, title, name, company_url, t
   const [webResearch, companyResearch, osintResults, culturalBrief] = await Promise.all([
     deepResearch(personName, personCompany, personTitle, companyDomain),
     deepCompanyResearch(personCompany, companyDomain),
-    runOsintEnrichment({ name: personName, linkedinUrl: linkedin_url, email }).catch(err => {
+    Promise.race([
+      runOsintEnrichment({ name: personName, linkedinUrl: linkedin_url, email }),
+      new Promise(resolve => setTimeout(() => { console.log('[individual-scan] OSINT time-boxed at 9s — proceeding with partial/none'); resolve(null); }, 9000)),
+    ]).catch(err => {
       console.error('[individual-scan] OSINT enrichment failed (non-fatal):', err.message);
       return null;
     }),
@@ -1038,16 +845,17 @@ async function scanIndividual({ linkedin_url, email, title, name, company_url, t
         'X-Title': 'DRiX Individual Intelligence v2',
       },
       body: JSON.stringify({
-        model: OPENROUTER_MODEL_ID,
+        model: INDIVIDUAL_MODEL_ID,
+        provider: { sort: 'throughput' }, // route to the fastest provider for this model
         messages: [
           { role: 'system', content: PSYCHOGRAPHIC_PROMPT },
           { role: 'user', content: `Analyze this individual and produce a CONFIDENCE-SCORED psychographic intelligence profile. Every claim must have a confidence percentage and basis.\n\nENRICHED DATA:\n\n${JSON.stringify(enrichmentPackage, null, 2)}\n\nINSTRUCTIONS:\n1. Start with VERIFIED FACTS from Apollo/web data. These are your foundation (85-100% confidence).\n2. Build STRONG INFERENCES from verified facts + your knowledge of the person/company/industry (70-84%).\n3. Add MODERATE INFERENCES where role + industry patterns suggest likely behaviors (50-69%).\n4. Be HONEST about SPECULATIVE claims — label them clearly (25-49%).\n5. If OSINT data is present, note the _WARNING field. Username matches are UNVERIFIED. Do not treat them as confirmed identity.\n6. Use your own knowledge FREELY but label it. If you know this company is a community bank in Texas, say so and use it.\n7. The reliability_summary at the end is MANDATORY — tell the rep what's solid and what's a guess.\n8. NEVER present an inference as a fact. A rep who walks in calibrated beats one who walks in overconfident.${enrichmentPackage.cultural_intelligence ? `\n9. CULTURAL INTELLIGENCE is available from TheCultureSync. The prospect is in ${enrichmentPackage.cultural_intelligence.target_country} (${enrichmentPackage.cultural_intelligence.cultural_baseline} baseline, ${enrichmentPackage.cultural_intelligence.region} region). Factor cultural norms into your sales_strategy: adapt pitch_angles for their communication style, adjust conversation_starters for cultural appropriateness, note phrases_to_use/avoid that respect their cultural context, and tailor meeting/negotiation advice. Include a "cultural_sales_guidance" section in your output with: country, baseline, key_adaptations (3-5 specific things to do differently), email_approach, meeting_approach, and trust_building_strategy. ${enrichmentPackage.cultural_intelligence.cross_culture_warning ? 'WARNING: ' + enrichmentPackage.cultural_intelligence.cross_culture_warning : ''}` : ''}` },
         ],
         response_format: { type: 'json_object' },
         temperature: 0.3,
-        max_tokens: 32000,
+        max_tokens: 5000,
       }),
-      signal: AbortSignal.timeout(180000), // 3 min — large psychographic output, no rush
+      signal: AbortSignal.timeout(90000), // 90s cap — output is now bounded for speed
     });
 
     if (!response.ok) {
@@ -1142,6 +950,9 @@ async function scanIndividual({ linkedin_url, email, title, name, company_url, t
 // =============================================================================
 
 function buildEnrichmentPackage({ apolloPerson, apolloCompany, webResearch, companyResearch, osintResults, culturalBrief, personName, personTitle, personCompany, linkedin_url, email, supplementalDocs }) {
+  // Compact search results for the LLM: title + short description only (drop urls/dates)
+  // to shrink the prompt and speed up the synthesis call.
+  const compact = (arr, n = 5, dlen = 160) => (arr || []).slice(0, n).map(r => ({ title: r.title || '', desc: (r.description || '').slice(0, dlen) }));
   const pkg = {
     person: {
       name: personName,
@@ -1159,17 +970,11 @@ function buildEnrichmentPackage({ apolloPerson, apolloCompany, webResearch, comp
     company_context: null,
     company_intelligence: null,
     web_research: {
-      discovery: (webResearch.discovery || []).slice(0, 15),
-      profile_pages: (webResearch.profile_pages || []).slice(0, 10),
-      certifications: (webResearch.certifications || []).slice(0, 10),
-      podcasts: webResearch.podcasts.slice(0, 8),
-      conference_talks: webResearch.talks.slice(0, 8),
-      videos: webResearch.videos.slice(0, 8),
-      news_mentions: webResearch.news.slice(0, 10),
-      pr_announcements: webResearch.pr.slice(0, 8),
-      published_content: webResearch.content.slice(0, 8),
-      awards: webResearch.awards.slice(0, 8),
-      volunteer_board: webResearch.volunteer.slice(0, 8),
+      discovery: compact(webResearch.discovery, 6),
+      profile_pages: compact(webResearch.profile_pages, 5),
+      certifications: compact(webResearch.certifications, 4),
+      news_mentions: compact(webResearch.news, 5),
+      pr_announcements: compact(webResearch.pr, 4),
     },
   };
 
@@ -1222,16 +1027,9 @@ function buildEnrichmentPackage({ apolloPerson, apolloCompany, webResearch, comp
     const hasData = Object.values(companyResearch).some(arr => arr.length > 0);
     if (hasData) {
       pkg.company_intelligence = {
-        about_pages: (companyResearch.about || []).slice(0, 8),
-        investor_relations: (companyResearch.investor_relations || []).slice(0, 5),
-        sec_filings: companyResearch.sec_filings.slice(0, 8),
-        recent_press_releases: companyResearch.press_releases.slice(0, 10),
-        recent_news: companyResearch.news.slice(0, 10),
-        earnings_financials: companyResearch.earnings.slice(0, 8),
-        leadership_changes: companyResearch.leadership.slice(0, 8),
-        partnerships_acquisitions: companyResearch.partnerships.slice(0, 8),
-        product_launches: companyResearch.product_launches.slice(0, 8),
-        hiring_signals: companyResearch.hiring_signals.slice(0, 8),
+        about_pages: compact(companyResearch.about, 5),
+        recent_news: compact(companyResearch.news, 5),
+        leadership_changes: compact(companyResearch.leadership, 5),
       };
     }
   }
