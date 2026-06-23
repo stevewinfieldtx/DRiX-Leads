@@ -637,14 +637,22 @@ async function ingestOne({ url, role, hint_name, skipCache = false, supplemental
     }
   }
 
-  // ─── IF NOT REFRESHING: return existing cache as-is ─────────────────────
-  if (!skipCache && existingResult) {
-    return { ...existingResult, source: existingResult.source || 'cache' };
+  // ─── TIERED ENRICHMENT (driven by how many atoms we already have) ───────
+  //   < 60 atoms : full scrape to build the cache up
+  //   60–119     : small scrape — top up with additional intel, then cache
+  //   >= 120     : fully cached — never scrape again
+  const haveAtoms = existingResult?.atoms?.length || 0;
+
+  if (existingResult && haveAtoms >= 120) {
+    console.log(`[INGEST] ${url} (${role}) fully cached (${haveAtoms} atoms ≥ 120) — no scrape.`);
+    return { ...existingResult, source: existingResult.source || 'cache_full' };
   }
 
-  // ─── FRESH RESEARCH: scrape + LLM analysis ─────────────────────────────
-  // This runs either when: (a) no cache exists, or (b) user checked refresh
-  console.log(`[INGEST] Fresh research for ${url} (${role})${existingResult ? ` — will ADD to ${existingResult.atoms?.length || 0} existing atoms` : ''}`);
+  // 60–119 atoms → small top-up scrape. Below 60 (or no cache) → full scrape.
+  const topUp = !!existingResult && haveAtoms >= 60;
+
+  // ─── RESEARCH: scrape + LLM analysis (full, or small top-up) ────────────
+  console.log(`[INGEST] ${topUp ? 'SMALL top-up' : 'FULL'} research for ${url} (${role})${existingResult ? ` — adding to ${haveAtoms} existing atoms` : ''}`);
 
   const fetched = await fetchAndStrip(url);
   if (!fetched.text || fetched.text.length < 200) {
@@ -667,7 +675,7 @@ async function ingestOne({ url, role, hint_name, skipCache = false, supplemental
 
   // ─── REFRESH MODE: tell the LLM what atoms already exist so it finds NEW ones ──
   let refreshPreamble = '';
-  if (skipCache && existingResult?.atoms?.length) {
+  if ((skipCache || topUp) && existingResult?.atoms?.length) {
     const existingSummary = existingResult.atoms.map(a =>
       `[${a.atom_id}] (${a.type}) ${(a.claim || '').slice(0, 80)}`
     ).join('\n');
@@ -693,7 +701,9 @@ Generate atoms with DIFFERENT atom_ids than the ones listed above. Use a "refres
     content: contentBlock + refreshPreamble
   });
 
-  const ingestTokens = 32000;
+  // Small top-up scrapes (60–119 atoms) use a lighter LLM budget — we only need
+  // a handful of additional atoms, not a full decomposition.
+  const ingestTokens = topUp ? 6000 : 32000;
   const ingestPrompt = INGEST_PROMPT;
   const parsed = await callLLM(ingestPrompt, userContent, { maxTokens: ingestTokens });
   if (!parsed?.atoms?.length) {
@@ -741,6 +751,45 @@ Generate atoms with DIFFERENT atom_ids than the ones listed above. Use a "refres
   }
   db.setCachedIngest(url, role, result).catch(e => console.error('[db] cache write:', e.message));
 
+  return result;
+}
+
+// ─── INDIVIDUAL SCAN CACHE ──────────────────────────────────────────────────
+// Caches the full scanIndividual result so repeat scans of the same person are
+// instant (the scan is the slow ~30-60s part). Keyed by LinkedIn URL → email →
+// name+company. Mem + Postgres (role 'individual' in ingest_cache).
+const individualCache = new Map();
+const INDIVIDUAL_CACHE_MAX = 500;
+
+function individualCacheKey({ linkedin_url, email, name, company_url }) {
+  const raw = (linkedin_url || email || `${name || ''}|${company_url || ''}`).toLowerCase().trim();
+  return raw.replace(/^https?:\/\//, '').replace(/\/+$/, '').slice(0, 200);
+}
+
+async function scanIndividualCached(params, { refresh = false } = {}) {
+  const key = individualCacheKey(params);
+  if (!refresh && key) {
+    if (individualCache.has(key)) {
+      console.log(`[individual] MEM cache HIT ${key}`);
+      return { ...individualCache.get(key), source: 'cache' };
+    }
+    const dbHit = await db.getCachedIndividual(key).catch(() => null);
+    if (dbHit) {
+      console.log(`[individual] DB cache HIT ${key}`);
+      individualCache.set(key, dbHit);
+      return { ...dbHit, source: 'cache' };
+    }
+  }
+  const result = await scanIndividual(params);
+  // Only cache a result that actually came back with content.
+  if (key && result && ((result.atoms && result.atoms.length) || result.summary)) {
+    individualCache.set(key, result);
+    if (individualCache.size > INDIVIDUAL_CACHE_MAX) {
+      const oldest = individualCache.keys().next().value;
+      individualCache.delete(oldest);
+    }
+    db.setCachedIndividual(key, result).catch(e => console.error('[db] individual cache write:', e.message));
+  }
   return result;
 }
 
@@ -1422,7 +1471,7 @@ app.post('/api/demo-flow', async (req, res) => {
     if (individual_linkedin) {
       try {
         send('phase', { phase: 'individual_scan', message: `Researching individual digital footprint and public presence…` });
-        const individualResult = await scanIndividual({
+        const individualResult = await scanIndividualCached({
           linkedin_url: individual_linkedin,
           email: individual_email || null,
           title: recipient_role || null,
@@ -1430,7 +1479,7 @@ app.post('/api/demo-flow', async (req, res) => {
           company_url: customer_url || null,
           tier: 1,
           supplementalDocs: docs_individual || null,
-        });
+        }, { refresh: !!refresh_individual });
         individual = {
           target: {
             name: individualResult.individual?.name || individual_name || 'Target Individual',
@@ -1733,6 +1782,42 @@ async function generateDiscoveryIntel(args) {
   return brain.discoveryIntel.generateDiscoveryIntel(args);
 }
 
+// Re-write the hydration email drip in the user's CPP voice WITHOUT changing
+// meaning, structure, or CTAs. Returns a voiced CLONE — the caller must keep the
+// shared (neutral) hydration cache untouched so one user's voice never leaks to
+// another. No-op (returns input) if there are no emails or the rewrite fails.
+async function applyVoiceToEmails(hydration, voiceBlock) {
+  const emails = hydration && (hydration.emailCampaign || hydration.emailSequence);
+  if (!Array.isArray(emails) || !emails.length || !voiceBlock) return hydration;
+  const prompt = `You rewrite sales emails in a specific person's authentic voice. Do NOT change the meaning, structure, recipient, offer, sequence position, or call-to-action — only change HOW each email is written so it matches the voice profile below. Keep every email's intent and key points identical.
+
+WRITER VOICE PROFILE (CPP — Communication Personality Profile):
+${voiceBlock}
+
+Return ONLY valid JSON: {"emails":[{"subject":"<rewritten subject>","body":"<rewritten body>"}]} in the SAME ORDER as the input, with the SAME number of emails. Do not add or drop emails.`;
+  const input = JSON.stringify({
+    emails: emails.map(e => ({ subject: e.subject || e.subject_line || '', body: e.body || e.content || '' }))
+  });
+  let rewritten;
+  try {
+    const out = await callLLM(prompt, input, { maxTokens: 4000, retries: 1 });
+    rewritten = out && out.emails;
+  } catch (e) {
+    console.warn('[voice] drip rewrite failed:', e.message);
+    return hydration;
+  }
+  if (!Array.isArray(rewritten) || rewritten.length !== emails.length) return hydration;
+  const clone = JSON.parse(JSON.stringify(hydration));
+  const arr = clone.emailCampaign || clone.emailSequence;
+  arr.forEach((em, i) => {
+    const rw = rewritten[i] || {};
+    if (rw.subject) { if ('subject' in em) em.subject = rw.subject; else em.subject_line = rw.subject; }
+    if (rw.body)    { if ('body' in em) em.body = rw.body; else em.content = rw.body; }
+  });
+  clone.voiced = true;
+  return clone;
+}
+
 // Hydration endpoint — called AFTER user picks a strategy.
 // Generates the DRiX Ready Lead (discovery questions, pain chips, email drip)
 // NATIVELY from the atoms + pain groups + chosen strategy DRiX already holds.
@@ -1803,6 +1888,15 @@ app.post('/api/hydrate', async (req, res) => {
       });
       if (!hydration) throw new Error('Discovery intel generation returned no data');
       db.setCachedIngest(hydKey, 'hydration', hydration);
+    }
+
+    // Apply the user's CPP voice to the 5-email drip (per-request — the shared
+    // hydration cache above stays NEUTRAL so one user's voice never leaks to another).
+    if (req.userEmail) {
+      try {
+        const voice = (await require('./auth').getProfile(req.userEmail))?.cpp_voice;
+        if (voice) hydration = await applyVoiceToEmails(hydration, voice);
+      } catch (e) { console.warn('[hydrate] CPP voice apply failed:', e.message); }
     }
 
     // ── Unify score: carry the strategy's confidence as the hydration fit score ──
@@ -3806,8 +3900,16 @@ app.post('/api/comparison', async (req, res) => {
       `[${a.atom_id || a.id || '?'}] (${a.type}) ${truncClaim(a.claim)}${a.evidence ? ' | Evidence: ' + truncClaim(a.evidence) : ''}`
     ).join('\n');
 
-    // Resolve CPP profile
+    // Resolve CPP profile. Prefer the logged-in user's OWN voice (from the CPA
+    // service or uploaded via /api/cpp/upload) so emails are written in their
+    // authentic voice; fall back to the built-in profile.
     const cppProfile = CPP_PROFILES[cpp] || CPP_PROFILES.steve;
+    let userVoice = null;
+    if (req.userEmail) {
+      try { userVoice = (await require('./auth').getProfile(req.userEmail))?.cpp_voice || null; }
+      catch (e) { /* fall back to built-in voice */ }
+    }
+    const voiceBlock = userVoice || cppProfile.voice;
     const writerName = cppProfile.name;
     const taskDesc = TDE_TASKS[scenario](customer.target?.name || displayName, writerName);
 
@@ -3815,7 +3917,7 @@ app.post('/api/comparison', async (req, res) => {
     const cppBlock = `WRITER VOICE PROFILE (CPP — Communication Personality Profile):
 You MUST write the ENTIRE output in the voice and style described below. This is the HIGHEST PRIORITY instruction. Every sentence, every word choice, every punctuation mark must match this person's writing style. If the voice profile says "never use em dashes" then there must be ZERO em dashes in your output.
 
-${cppProfile.voice}
+${voiceBlock}
 
 ---END OF VOICE PROFILE---
 Now, using that exact voice, complete the following task using ONLY the atoms provided:`;
@@ -3827,7 +3929,7 @@ Now, using that exact voice, complete the following task using ONLY the atoms pr
       .replace('{TASK_DESCRIPTION}', taskDesc);
 
     const totalSynthAtoms = senderAtomsForSynth.length + customerAtomsForSynth.length;
-    send('tde_phase', { phase: 'cpp', message: `Applying ${cppProfile.label} voice profile (${writerName})...` });
+    send('tde_phase', { phase: 'cpp', message: `Applying ${userVoice ? 'your personal' : cppProfile.label} voice profile...` });
     send('tde_phase', { phase: 'synthesize', message: `Synthesizing from ${totalSynthAtoms} atoms as ${writerName}...` });
 
     // Cerebras direct (~2000 tok/s) with OpenRouter fallback
@@ -4527,14 +4629,14 @@ app.post('/api/individual-scan', async (req, res) => {
   const { linkedin_url, email, title, name, company_url, tier } = req.body || {};
   if (!linkedin_url) return res.status(400).json({ error: 'linkedin_url required' });
   try {
-    const result = await scanIndividual({
+    const result = await scanIndividualCached({
       linkedin_url,
       email: email || null,
       title: title || null,
       name: name || null,
       company_url: company_url || null,
       tier: tier || 1,
-    });
+    }, { refresh: !!req.body?.refresh });
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -27,6 +27,48 @@ const RESET_TTL_MS      = 30 * 60 * 1000;    // password-reset link valid 30 min
 const SESSION_TTL_MS    = 30 * 24 * 60 * 60 * 1000; // 30 days
 const MIN_PASSWORD_LEN  = 8;
 
+// ─── CPP (Communication Personality Profile) service ─────────────────────────
+// On first registration we ping the CPA service to see if the user already has a
+// voice profile. If yes, we cache its prompt_text for personalized email
+// generation. If not, the client offers upload / paste-voice-guidance. Configure
+// via CPP_BASE_URL / CPP_API_KEY; defaults to the deployed CPA service.
+const CPP_BASE_URL  = (process.env.CPP_BASE_URL || 'https://communication-personality-analyzer.up.railway.app').replace(/\/+$/, '');
+const CPP_API_KEY   = process.env.CPP_API_KEY || '';
+const CPP_TENANT_ID = process.env.CPP_TENANT_ID || 'default';
+
+async function cppGet(path) {
+  const res = await fetch(`${CPP_BASE_URL}${path}`, {
+    headers: CPP_API_KEY ? { 'X-API-Key': CPP_API_KEY } : {},
+    signal: AbortSignal.timeout(12000),
+  });
+  if (!res.ok) throw new Error(`CPP ${res.status}`);
+  return res.json();
+}
+
+async function cppCheckStatus(email) {
+  if (!CPP_BASE_URL) return { exists: false, configured: false };
+  try {
+    const q = new URLSearchParams({ tenant_id: CPP_TENANT_ID, user_email: email });
+    const d = await cppGet(`/cpp-status?${q.toString()}`);
+    return { exists: !!d.exists, configured: true, version: d.cpp_version || null, email_count: d.training_email_count || null };
+  } catch (e) {
+    console.warn('[cpp] status check failed:', e.message);
+    return { exists: false, configured: true, error: e.message };
+  }
+}
+
+async function cppFetchVoice(email) {
+  if (!CPP_BASE_URL) return null;
+  try {
+    const q = new URLSearchParams({ tenant_id: CPP_TENANT_ID, user_email: email });
+    const d = await cppGet(`/voice-profile?${q.toString()}`);
+    return (d.exists && d.prompt_text) ? d.prompt_text : null;
+  } catch (e) {
+    console.warn('[cpp] voice fetch failed:', e.message);
+    return null;
+  }
+}
+
 const SESSION_SECRET = process.env.SESSION_SECRET
   || crypto.createHash('sha256').update('drix-session::' + (process.env.OPENROUTER_API_KEY || 'fallback')).digest('hex');
 
@@ -140,6 +182,10 @@ async function initSchema() {
       );
       -- Migration for tables created before password auth existed.
       ALTER TABLE app_users ADD COLUMN IF NOT EXISTS password_hash TEXT;
+      ALTER TABLE app_users ADD COLUMN IF NOT EXISTS partner_url TEXT;
+      ALTER TABLE app_users ADD COLUMN IF NOT EXISTS cpp_status TEXT;
+      ALTER TABLE app_users ADD COLUMN IF NOT EXISTS cpp_voice TEXT;
+      ALTER TABLE app_users ADD COLUMN IF NOT EXISTS cpp_checked_at TIMESTAMPTZ;
       CREATE TABLE IF NOT EXISTS app_payments (
         id          TEXT PRIMARY KEY,
         email       TEXT,
@@ -187,6 +233,30 @@ async function getUser(email) {
   if (!r.rows.length) return { email, runs_used: 0, runs_granted: 0, redeemed: [] };
   const row = r.rows[0];
   return { email, runs_used: row.runs_used, runs_granted: row.runs_granted, redeemed: row.redeemed || [] };
+}
+
+// ─── PROFILE (partner URL + CPP voice) ───────────────────────────────────────
+async function getProfile(email) {
+  const p = pool();
+  if (!p) {
+    const u = memUsers.get(email) || {};
+    return { partner_url: u.partner_url || null, cpp_status: u.cpp_status || null, cpp_voice: u.cpp_voice || null, cpp_checked_at: u.cpp_checked_at || null };
+  }
+  const r = await p.query(`SELECT partner_url, cpp_status, cpp_voice, cpp_checked_at FROM app_users WHERE email = $1`, [email]);
+  if (!r.rows.length) return { partner_url: null, cpp_status: null, cpp_voice: null, cpp_checked_at: null };
+  return r.rows[0];
+}
+
+async function setPartnerUrl(email, url) {
+  const p = pool();
+  if (!p) { const u = memUsers.get(email) || { runs_used: 0, runs_granted: 0, redeemed: new Set() }; u.partner_url = url; memUsers.set(email, u); return; }
+  await p.query(`UPDATE app_users SET partner_url = $2 WHERE email = $1`, [email, url]);
+}
+
+async function setCpp(email, { status, voice }) {
+  const p = pool();
+  if (!p) { const u = memUsers.get(email) || { runs_used: 0, runs_granted: 0, redeemed: new Set() }; u.cpp_status = status; u.cpp_voice = voice ?? null; u.cpp_checked_at = new Date().toISOString(); memUsers.set(email, u); return; }
+  await p.query(`UPDATE app_users SET cpp_status = $2, cpp_voice = $3, cpp_checked_at = NOW() WHERE email = $1`, [email, status, voice ?? null]);
 }
 
 // ─── PASSWORDS (scrypt, no dependency) ────────────────────────────────────────
@@ -698,8 +768,20 @@ function install(app, deps = {}) {
       await setPassword(v.email, hashPassword(password));
       setSessionCookie(res, makeToken(v.email));
       const u = await getUser(v.email);
-      console.log(`[auth] Signup: ${v.email}`);
-      res.json({ ok: true, email: v.email, remaining: Math.max(0, FREE_RUNS + u.runs_granted - u.runs_used) });
+
+      // First-time profile + CPP check (best-effort — never blocks signup).
+      const partnerUrl = String(req.body?.partner_url || '').trim();
+      if (partnerUrl) { try { await setPartnerUrl(v.email, partnerUrl); } catch (e) { console.warn('[auth] partner_url save failed:', e.message); } }
+      let cppAvailable = false;
+      try {
+        const st = await cppCheckStatus(v.email);
+        cppAvailable = !!st.exists;
+        const voice = st.exists ? await cppFetchVoice(v.email) : null;
+        await setCpp(v.email, { status: st.exists ? 'available' : 'unavailable', voice });
+      } catch (e) { console.warn('[auth] CPP signup check failed:', e.message); }
+
+      console.log(`[auth] Signup: ${v.email} (CPP ${cppAvailable ? 'available' : 'not found'})`);
+      res.json({ ok: true, email: v.email, remaining: Math.max(0, FREE_RUNS + u.runs_granted - u.runs_used), cpp_available: cppAvailable });
     } catch (e) { console.error('[auth] signup error:', e.message); res.status(500).json({ error: 'Could not create your account. Try again.' }); }
   });
 
@@ -788,12 +870,16 @@ function install(app, deps = {}) {
     const email = sessionEmail(req);
     if (!email) return res.status(401).json({ error: 'Not signed in' });
     const u = await getUser(email);
+    const prof = await getProfile(email).catch(() => ({}));
     res.json({
       email, free: FREE_RUNS, runs_used: u.runs_used, runs_granted: u.runs_granted,
       remaining: Math.max(0, FREE_RUNS + u.runs_granted - u.runs_used),
       redeemed: u.redeemed, stripe_enabled: stripeEnabled(),
       license_enabled: licenseConfigured(), buy_url: BUY_URL, runs_per_purchase: RUNS_PER_PURCHASE,
       is_admin: isAdmin(email), paypal_enabled: paypalEnabled(),
+      partner_url: prof.partner_url || null,
+      cpp_status: prof.cpp_status || null,
+      cpp_available: prof.cpp_status === 'available' || prof.cpp_status === 'uploaded',
     });
   });
 
@@ -871,6 +957,50 @@ function install(app, deps = {}) {
 
   // Account / redeem / buy page (signed-in users; otherwise the login wall).
   // A ?reset= token always gets the login page so the reset form can render.
+  // ─── PROFILE + CPP ──────────────────────────────────────────────────────────
+  app.get('/api/profile', async (req, res) => {
+    const email = sessionEmail(req);
+    if (!email) return res.status(401).json({ error: 'Not signed in' });
+    const prof = await getProfile(email).catch(() => ({}));
+    res.json({
+      email,
+      partner_url: prof.partner_url || null,
+      cpp_status: prof.cpp_status || null,
+      cpp_available: prof.cpp_status === 'available' || prof.cpp_status === 'uploaded',
+      has_voice: !!prof.cpp_voice,
+    });
+  });
+
+  app.post('/api/profile', async (req, res) => {
+    const email = sessionEmail(req);
+    if (!email) return res.status(401).json({ error: 'Not signed in' });
+    const url = String(req.body?.partner_url || '').trim();
+    try { await setPartnerUrl(email, url); res.json({ ok: true, partner_url: url }); }
+    catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Fallback when no CPP exists: user pastes a writing sample / voice guidance.
+  app.post('/api/cpp/upload', async (req, res) => {
+    const email = sessionEmail(req);
+    if (!email) return res.status(401).json({ error: 'Not signed in' });
+    const voice = String(req.body?.voice || req.body?.text || '').trim();
+    if (voice.length < 20) return res.status(400).json({ error: 'Paste a writing sample or voice guidance (at least a sentence or two).' });
+    try { await setCpp(email, { status: 'uploaded', voice }); res.json({ ok: true, cpp_status: 'uploaded' }); }
+    catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Re-ping the CPA service (e.g., after the user enrolls their email there).
+  app.post('/api/cpp/recheck', async (req, res) => {
+    const email = sessionEmail(req);
+    if (!email) return res.status(401).json({ error: 'Not signed in' });
+    try {
+      const st = await cppCheckStatus(email);
+      const voice = st.exists ? await cppFetchVoice(email) : null;
+      await setCpp(email, { status: st.exists ? 'available' : 'unavailable', voice });
+      res.json({ ok: true, cpp_available: !!st.exists, cpp_status: st.exists ? 'available' : 'unavailable' });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
   app.get('/account', (req, res) => {
     const email = sessionEmail(req);
     const file = (email && !req.query.reset) ? 'account.html' : 'login.html';
@@ -919,5 +1049,5 @@ function install(app, deps = {}) {
   });
 }
 
-module.exports = { install };
+module.exports = { install, getProfile };
 // end of auth.js

@@ -426,6 +426,38 @@ async function setCachedArchetype(industryKey, payload) {
   }
 }
 
+// Individual-scan cache — reuses ingest_cache with role 'individual'. Key is a
+// normalized person identifier (LinkedIn URL / email / name+company).
+async function getCachedIndividual(key) {
+  const p = getPool();
+  if (!p) return null;
+  try {
+    const res = await p.query(`
+      SELECT payload FROM ingest_cache
+      WHERE url = $1 AND role = 'individual' AND created_at > NOW() - INTERVAL '${CACHE_TTL_DAYS} days'
+      ORDER BY created_at DESC LIMIT 1
+    `, [key]);
+    if (res.rows.length) return res.rows[0].payload;
+    return null;
+  } catch (err) {
+    console.error('[db] getCachedIndividual error:', err.message);
+    return null;
+  }
+}
+
+async function setCachedIndividual(key, payload) {
+  const p = getPool();
+  if (!p) return;
+  try {
+    await p.query(`
+      INSERT INTO ingest_cache (url, role, payload) VALUES ($1, 'individual', $2)
+      ON CONFLICT (url, role) DO UPDATE SET payload = EXCLUDED.payload, created_at = NOW()
+    `, [key, JSON.stringify(payload)]);
+  } catch (err) {
+    console.error('[db] setCachedIndividual error:', err.message);
+  }
+}
+
 // ─── QUERY HELPERS (for future use) ──────────────────────────────────────────
 
 async function getRunsByEmail(email, limit = 20) {
@@ -460,6 +492,8 @@ module.exports = {
   setCachedIngest,
   getCachedArchetype,
   setCachedArchetype,
+  getCachedIndividual,
+  setCachedIndividual,
   isConfigured,
   getPool
 };

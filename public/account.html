@@ -35,6 +35,20 @@
 
     <div class="runs"><span class="n" id="remaining">–</span><span class="l">runs remaining</span></div>
 
+    <hr />
+    <h1 style="font-size:16px">Your voice &amp; partner profile</h1>
+    <p class="sub" id="cppStatus">Checking your voice profile…</p>
+    <label for="partnerUrl">Partner / company URL</label>
+    <input id="partnerUrl" placeholder="yourcompany.com" autocomplete="off" />
+    <button id="savePartner">Save profile</button>
+    <div id="cppUploadWrap" style="display:none">
+      <label for="cppVoice" style="margin-top:18px">Paste a writing sample or voice guidance</label>
+      <p class="sub">We didn't find a CPP voice profile for you yet. Paste a few of your own emails (or describe how you write) and we'll use it to personalize generated emails. Already enrolled in CPA? <a href="#" id="cppRecheck">Re-check now</a>.</p>
+      <textarea id="cppVoice" placeholder="e.g. I write short, warm, direct emails. No jargon. I open with a specific observation, not a compliment..." style="width:100%;height:120px;padding:12px;border:1px solid var(--line);border-radius:10px;font-size:14px;font-family:inherit"></textarea>
+      <button id="saveVoice">Save my voice</button>
+    </div>
+
+    <hr />
     <label for="code">Have a code or license key?</label>
     <p class="sub">Enter your promo code or the license key from your purchase.</p>
     <input id="code" placeholder="paste code or key" autocomplete="off" />
@@ -75,6 +89,8 @@
       var d = await r.json();
       document.getElementById('who').textContent = 'Signed in as ' + d.email;
       document.getElementById('remaining').textContent = d.remaining;
+      if (d.partner_url) document.getElementById('partnerUrl').value = d.partner_url;
+      renderCpp(d.cpp_status, d.cpp_available);
       var buyBtn = document.getElementById('buyBtn');
       if (d.paypal_enabled) {
         // Fully automated: create a PayPal order tied to this account, then redirect.
@@ -142,6 +158,32 @@
       else { show('ok', '+' + d.granted + ' runs added.'); document.getElementById('code').value=''; refresh(); }
     } catch(e){ show('err','Network error. Try again.'); }
     btn.disabled = false; btn.textContent='Redeem';
+  });
+
+  function renderCpp(status, available){
+    var s=document.getElementById('cppStatus'), up=document.getElementById('cppUploadWrap');
+    if(available){ s.textContent='✓ Voice profile active'+(status==='uploaded'?' (uploaded).':' (from CPA).')+' Generated emails will match your voice.'; up.style.display='none'; }
+    else { s.textContent='No CPP voice profile found yet. Add one below to personalize your emails.'; up.style.display='block'; }
+  }
+
+  document.getElementById('savePartner').addEventListener('click', async function(){
+    clr(); var btn=this, url=document.getElementById('partnerUrl').value.trim();
+    btn.disabled=true; btn.textContent='Saving…';
+    try { var r=await fetch('/api/profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({partner_url:url})}); var d=await r.json(); show(r.ok?'ok':'err', r.ok?'Profile saved.':(d.error||'Could not save.')); } catch(e){ show('err','Network error.'); }
+    btn.disabled=false; btn.textContent='Save profile';
+  });
+
+  document.getElementById('saveVoice').addEventListener('click', async function(){
+    clr(); var btn=this, voice=document.getElementById('cppVoice').value.trim();
+    if(voice.length<20){ show('err','Paste a bit more — a sentence or two at least.'); return; }
+    btn.disabled=true; btn.textContent='Saving…';
+    try { var r=await fetch('/api/cpp/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({voice:voice})}); var d=await r.json(); if(r.ok){ show('ok','Your voice was saved.'); renderCpp('uploaded',true); } else show('err',d.error||'Could not save.'); } catch(e){ show('err','Network error.'); }
+    btn.disabled=false; btn.textContent='Save my voice';
+  });
+
+  document.getElementById('cppRecheck').addEventListener('click', async function(e){
+    e.preventDefault(); clr();
+    try { var r=await fetch('/api/cpp/recheck',{method:'POST'}); var d=await r.json(); if(r.ok){ renderCpp(d.cpp_status,d.cpp_available); show(d.cpp_available?'ok':'err', d.cpp_available?'Found your CPP — voice activated.':'Still no CPP found. Paste voice guidance instead.'); } else show('err',d.error||'Re-check failed.'); } catch(err){ show('err','Network error.'); }
   });
 
   document.getElementById('appBtn').addEventListener('click', function(){ window.location.href='/'; });
