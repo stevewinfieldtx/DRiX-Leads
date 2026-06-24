@@ -92,7 +92,17 @@ const DIMENSIONS = {
 };
 
 // ─── IN-MEMORY STORE for this session's demo runs ────────────────────────────
-const runStore = new Map(); // run_id → { sender, solution, customer, industry, strategies, ... }
+const runStore = new Map();
+
+async function getRunOrRehydrate(run_id) {
+  let run = runStore.get(run_id);
+  if (run) return run;
+  try {
+    const full = await db.getRunFull(run_id);
+    if (full) { runStore.set(run_id, full); return full; }
+  } catch (e) { console.error('[rehydrate] failed', run_id, e.message); }
+  return null;
+} // run_id → { sender, solution, customer, industry, strategies, ... }
 
 // ─── LOCAL INGEST CACHE ─────────────────────────────────────────────────────
 // Keyed by normalized URL → full ingest result (atoms, summary, target).
@@ -1826,7 +1836,7 @@ Return ONLY valid JSON: {"emails":[{"subject":"<rewritten subject>","body":"<rew
 app.post('/api/hydrate', async (req, res) => {
   const { run_id, strategy_id, custom_strategy } = req.body || {};
   if (!run_id) return res.status(400).json({ error: 'Require run_id' });
-  const run = runStore.get(run_id);
+  const run = await getRunOrRehydrate(run_id);
   if (!run) return res.status(404).json({ error: 'run_id not found or expired' });
 
   // Resolve which strategy was selected
@@ -2675,7 +2685,7 @@ app.post('/api/coach-chat', async (req, res) => {
   if (!run_id)  return res.status(400).json({ error: 'Require run_id' });
   if (!message) return res.status(400).json({ error: 'Require message' });
 
-  const run = runStore.get(run_id);
+  const run = await getRunOrRehydrate(run_id);
   if (!run) return res.status(404).json({ error: 'run_id not found or expired' });
 
   const context = buildCoachContext(run);
@@ -2731,7 +2741,7 @@ app.post('/api/coach-voice/provision', async (req, res) => {
   if (!run_id) return res.status(400).json({ error: 'Require run_id' });
   if (!ELEVENLABS_API_KEY) return res.status(503).json({ error: 'ELEVENLABS_API_KEY not configured' });
 
-  const run = runStore.get(run_id);
+  const run = await getRunOrRehydrate(run_id);
   if (!run) return res.status(404).json({ error: 'run_id not found or expired' });
 
   // Return existing agent if already provisioned for this run
@@ -3155,8 +3165,14 @@ app.post('/api/send-report', async (req, res) => {
 // GET /api/report/:run_id — same HTML report, served inline (as a backup
 // if the email doesn't arrive, or for local preview). Not linked from the
 // UI, but handy for debugging.
-app.get('/api/report/:run_id', (req, res) => {
-  const run = runStore.get(req.params.run_id);
+app.get('/api/run/:run_id', async (req, res) => {
+  const run = await getRunOrRehydrate(req.params.run_id);
+  if (!run) return res.status(404).json({ error: 'Run not found or expired' });
+  res.json({ ...run, run_id: req.params.run_id });
+});
+
+app.get('/api/report/:run_id', async (req, res) => {
+  const run = await getRunOrRehydrate(req.params.run_id);
   if (!run) return res.status(404).send('<h2 style="font-family:sans-serif;padding:40px">Run not found or expired</h2>');
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(buildReportHtml(
@@ -3174,7 +3190,7 @@ function loadDocx() {
 }
 
 app.get('/api/report/:run_id/doc', async (req, res) => {
-  const run = runStore.get(req.params.run_id);
+  const run = await getRunOrRehydrate(req.params.run_id);
   if (!run) return res.status(404).json({ error: 'Run not found or expired' });
 
   const sec = reportSectionSet(req.query.sections);

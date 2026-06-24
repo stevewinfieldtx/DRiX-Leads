@@ -474,7 +474,11 @@ async function getRunFull(runId) {
   const p = getPool();
   if (!p) return null;
   const res = await p.query(`SELECT * FROM runs WHERE id = $1`, [runId]);
-  return res.rows[0] || null;
+  const row = res.rows[0];
+  if (!row) return null;
+  const { full_result, ...rest } = row;
+  const fr = typeof full_result === 'string' ? (JSON.parse(full_result) || {}) : (full_result || {});
+  return { ...rest, ...fr, run_id: row.id, created_at: row.created_at };
 }
 
 function isConfigured() {
