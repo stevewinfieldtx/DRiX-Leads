@@ -94,6 +94,13 @@ const DIMENSIONS = {
 // ─── IN-MEMORY STORE for this session's demo runs ────────────────────────────
 const runStore = new Map();
 
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(label + ' timed out after ' + Math.round(ms / 1000) + 's')), ms)),
+  ]);
+}
+
 async function getRunOrRehydrate(run_id) {
   let run = runStore.get(run_id);
   if (run) return run;
@@ -1282,7 +1289,7 @@ app.post('/api/investor-flow', async (req, res) => {
       : Promise.resolve(null);
     const solutionPromise = ingestOne({ url: normUrl(solution_url), role: 'solution', skipCache: !!refresh_solution, supplementalDocs: docs_solution || null });
 
-    const [individualRes, firmRes, solutionRes] = await Promise.allSettled([individualPromise, firmPromise, solutionPromise]);
+    const [individualRes, firmRes, solutionRes] = await Promise.allSettled([withTimeout(individualPromise, 90000, 'Individual ingest'), withTimeout(firmPromise, 90000, 'Firm ingest'), withTimeout(solutionPromise, 90000, 'Solution ingest')]);
     if (individual_url && individualRes.status === 'rejected') throw new Error(`Individual: ${individualRes.reason.message}`);
     if (firm_url && firmRes.status === 'rejected') throw new Error(`Firm: ${firmRes.reason.message}`);
     if (solutionRes.status === 'rejected') throw new Error(`Solution: ${solutionRes.reason.message}`);
@@ -1392,7 +1399,9 @@ app.post('/api/demo-flow', async (req, res) => {
 
     // Settle individually so one failure doesn't kill the rest
     const [senderRes, solutionRes, customerRes] = await Promise.allSettled([
-      senderPromise, solutionPromise, customerPromise
+      withTimeout(senderPromise, 90000, 'Sender ingest'),
+      withTimeout(solutionPromise, 90000, 'Solution ingest'),
+      withTimeout(customerPromise, 90000, 'Customer ingest'),
     ]);
 
     if (senderRes.status === 'rejected')   throw new Error(`Sender: ${senderRes.reason.message}`);
