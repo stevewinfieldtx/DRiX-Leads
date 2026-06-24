@@ -1,4 +1,4 @@
-﻿// auth.js â€” DRiX Ready Leads authentication, metering, discount codes, Stripe
+// auth.js â€” DRiX Ready Leads authentication, metering, discount codes, Stripe
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Self-contained. No new npm dependencies (uses Node crypto + global fetch).
 //
@@ -314,7 +314,12 @@ function recordLoginFail(email) {
 function clearLoginFails(email) { loginFails.delete(email); }
 
 // Atomically consume 1 run if allowance remains. Returns the updated user, or null if exhausted.
+// Unlimited allowance for internal/partner accounts (e.g. @wintechpartners.com).
+const UNLIMITED_DOMAIN = (process.env.UNLIMITED_DOMAIN || 'wintechpartners.com').toLowerCase();
+function isUnlimited(email) { return !!email && String(email).toLowerCase().trim().endsWith('@' + UNLIMITED_DOMAIN); }
+
 async function consumeRun(email) {
+  if (isUnlimited(email)) return { runs_used: 0, runs_granted: 1000000 };
   const p = pool();
   if (!p) {
     const u = memUsers.get(email) || { runs_used: 0, runs_granted: 0, redeemed: new Set() };
