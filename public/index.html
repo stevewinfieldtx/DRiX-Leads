@@ -2293,7 +2293,27 @@ window.sendCoachMsg = sendCoachMsg;
 window.openVoiceCoach = openVoiceCoach;
 window.closeVoiceCoach = closeVoiceCoach;
 
+async function loadSavedRun(runId) {
+  try {
+    const r = await fetch('/api/run/' + encodeURIComponent(runId));
+    if (!r.ok) { showError('Could not load this run (it may require sign-in or has no saved data).'); return; }
+    const run = await r.json();
+    state.runId = run.run_id || runId;
+    state.strategies = run.strategies || null;
+    state.topPickId = (run.strategies && run.strategies.top_pick_id) || null;
+    if (run.sender || run.solution || run.customer) renderAtoms(run);
+    if (run.individual) renderIndividual(run.individual);
+    if (run.pain_groups) renderPain(run.pain_groups, run.pain_points || []);
+    if (run.strategies) renderStrategies(run.strategies);
+    if (run.hydration) renderHydration({ hydration: run.hydration, chosen_strategy: run.chosen_strategy });
+  } catch (e) { showError('Could not load this run: ' + e.message); }
+}
+
 boot();
+try {
+  var __rid = new URLSearchParams(location.search).get('run');
+  if (__rid) loadSavedRun(__rid);
+} catch (e) {}
 </script>
 <script>
 /* drix-prefill: lets the DRiX-Dashboard deep-link open a run pre-filled */
