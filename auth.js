@@ -16,9 +16,10 @@
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const crypto = require('crypto');
+const drixAuth = require('./drix-auth');     // shared DRiX identity + SSO session
 
 // â”€â”€â”€ CONFIG â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const FREE_RUNS         = 10;                // free trial runs every user gets
+const FREE_RUNS         = 3;                 // free trial runs every user gets
 const RUNS_PER_PURCHASE = 10;                // 10 runs per $10 pack
 const PURCHASE_PRICE_CENTS = 1000;           // $10.00
 const DISCOUNT_CODE     = 'steveisawesome';  // exact, lowercase
@@ -26,6 +27,7 @@ const DISCOUNT_RUNS     = 10;                 // runs the code grants
 const RESET_TTL_MS      = 30 * 60 * 1000;    // password-reset link valid 30 minutes
 const SESSION_TTL_MS    = 30 * 24 * 60 * 60 * 1000; // 30 days
 const MIN_PASSWORD_LEN  = 8;
+const DRIX_PRICE_ID     = process.env.DRIX_PRICE_ID || ''; // Stripe price for the run-pack; checkout runs through the central auth service
 
 // ─── CPP (Communication Personality Profile) service ─────────────────────────
 // On first registration we ping the CPA service to see if the user already has a
@@ -69,7 +71,10 @@ async function cppFetchVoice(email) {
   }
 }
 
-const SESSION_SECRET = process.env.SESSION_SECRET
+// Shared across all DRiX apps. DRIX_SESSION_SECRET is the canonical name; we keep
+// SESSION_SECRET as a fallback so older deploys don't break mid-migration. Used
+// here only to sign password-reset tokens — session cookies go through drix-auth.
+const SESSION_SECRET = process.env.DRIX_SESSION_SECRET || process.env.SESSION_SECRET
   || crypto.createHash('sha256').update('drix-session::' + (process.env.OPENROUTER_API_KEY || 'fallback')).digest('hex');
 
 const RESEND_API_KEY   = process.env.RESEND_API_KEY || '';
@@ -259,45 +264,10 @@ async function setCpp(email, { status, voice }) {
   await p.query(`UPDATE app_users SET cpp_status = $2, cpp_voice = $3, cpp_checked_at = NOW() WHERE email = $1`, [email, status, voice ?? null]);
 }
 
-// ─── PASSWORDS (scrypt, no dependency) ────────────────────────────────────────
-// Stored format: scrypt$<saltB64>$<hashB64>
-function hashPassword(password) {
-  const salt = crypto.randomBytes(16);
-  const hash = crypto.scryptSync(String(password), salt, 64);
-  return `scrypt$${salt.toString('base64url')}$${hash.toString('base64url')}`;
-}
-function verifyPassword(password, stored) {
-  try {
-    const [scheme, saltB64, hashB64] = String(stored || '').split('$');
-    if (scheme !== 'scrypt' || !saltB64 || !hashB64) return false;
-    const salt = Buffer.from(saltB64, 'base64url');
-    const expected = Buffer.from(hashB64, 'base64url');
-    const actual = crypto.scryptSync(String(password), salt, expected.length);
-    return crypto.timingSafeEqual(actual, expected);
-  } catch { return false; }
-}
-
-// Fetch just the stored password hash (null if user missing or never set one).
-async function getPasswordHash(email) {
-  const p = pool();
-  if (!p) { const u = memUsers.get(email); return (u && u.password_hash) || null; }
-  const r = await p.query(`SELECT password_hash FROM app_users WHERE email = $1`, [email]);
-  return r.rows.length ? (r.rows[0].password_hash || null) : null;
-}
-async function userExists(email) {
-  const p = pool();
-  if (!p) return memUsers.has(email);
-  const r = await p.query(`SELECT 1 FROM app_users WHERE email = $1`, [email]);
-  return r.rows.length > 0;
-}
-async function setPassword(email, passwordHash) {
-  const p = pool();
-  if (!p) {
-    const u = memUsers.get(email) || { runs_used: 0, runs_granted: 0, redeemed: new Set() };
-    u.password_hash = passwordHash; memUsers.set(email, u); return;
-  }
-  await p.query(`UPDATE app_users SET password_hash = $2, last_seen = NOW() WHERE email = $1`, [email, passwordHash]);
-}
+// ─── IDENTITY ────────────────────────────────────────────────────────────────
+// Passwords + accounts live in the central DRiX auth service (WinTech-Pay),
+// reached through the drix-auth client. This file no longer hashes or stores
+// passwords; app_users here holds ONLY metering (runs) + profile, keyed by email.
 
 // Brute-force guard for password login: lock 15 min after 5 misses per email.
 const loginFails = new Map(); // email -> { count, until }
@@ -318,8 +288,9 @@ function clearLoginFails(email) { loginFails.delete(email); }
 const UNLIMITED_DOMAIN = (process.env.UNLIMITED_DOMAIN || 'wintechpartners.com').toLowerCase();
 function isUnlimited(email) { return !!email && String(email).toLowerCase().trim().endsWith('@' + UNLIMITED_DOMAIN); }
 
-async function consumeRun(email) {
-  if (isUnlimited(email)) return { runs_used: 0, runs_granted: 1000000 };
+async function consumeRun(email, entitled) {
+  // Paid (entitlement from the auth service) or internal domain → unlimited.
+  if (entitled || isUnlimited(email)) return { unlimited: true };
   const p = pool();
   if (!p) {
     const u = memUsers.get(email) || { runs_used: 0, runs_granted: 0, redeemed: new Set() };
@@ -486,50 +457,25 @@ async function redeemCode(email, codeRaw) {
 }
 
 // â”€â”€â”€ SESSION (HMAC-signed cookie, no dependency) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function sign(payloadB64) {
-  return crypto.createHmac('sha256', SESSION_SECRET).update(payloadB64).digest('base64url');
+// The cookie carries the central service's opaque session token. We resolve it
+// (with a short cache) ONCE per request in an early middleware and stash the
+// result on req._drix, so the many sync `sessionEmail(req)` call sites keep working.
+function setSessionCookie(res, token) { return drixAuth.setSessionCookie(res, token); }
+function clearSessionCookie(res) { return drixAuth.clearSessionCookie(res); }
+
+// Resolve the logged-in user from the cookie via the auth service. Returns
+// { id, email, token, paid, entitlements } or null. Used by the early resolver.
+async function resolveUser(req) {
+  const token = drixAuth.readToken(req);
+  if (!token) return null;
+  const m = await drixAuth.me(token);
+  if (!m || !m.user) return null;
+  return { id: m.user.id, email: String(m.user.email || '').toLowerCase(), token, paid: m.paid, entitlements: m.entitlements };
 }
-function makeToken(email) {
-  const payload = Buffer.from(JSON.stringify({ email, exp: Date.now() + SESSION_TTL_MS })).toString('base64url');
-  return `${payload}.${sign(payload)}`;
-}
-function verifyToken(token) {
-  if (!token || token.indexOf('.') < 0) return null;
-  const [payload, sig] = token.split('.');
-  if (sig !== sign(payload)) return null;
-  try {
-    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
-    if (!data.email || !data.exp || Date.now() > data.exp) return null;
-    return data.email;
-  } catch { return null; }
-}
-function parseCookies(req) {
-  const out = {};
-  const raw = req.headers.cookie;
-  if (!raw) return out;
-  for (const part of raw.split(';')) {
-    const i = part.indexOf('=');
-    if (i < 0) continue;
-    out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
-  }
-  return out;
-}
-function setSessionCookie(res, token) {
-  const attrs = [
-    `drix_session=${token}`, 'Path=/', 'HttpOnly', 'SameSite=Lax',
-    `Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`, 'Secure',
-  ];
-  // Scope to the parent domain so the cookie is shared across getthedrix.com
-  // and readyleads.getthedrix.com (same-site, so SameSite=Lax still applies).
-  if (COOKIE_DOMAIN) attrs.push(`Domain=${COOKIE_DOMAIN}`);
-  res.append('Set-Cookie', attrs.join('; '));
-}
-function clearSessionCookie(res) {
-  const attrs = ['drix_session=', 'Path=/', 'HttpOnly', 'SameSite=Lax', 'Max-Age=0', 'Secure'];
-  if (COOKIE_DOMAIN) attrs.push(`Domain=${COOKIE_DOMAIN}`);
-  res.append('Set-Cookie', attrs.join('; '));
-}
-function sessionEmail(req) { return verifyToken(parseCookies(req).drix_session); }
+// Sync accessors that read the pre-resolved value off req (set by the resolver).
+function sessionUser(req) { return req._drix || null; }
+function sessionEmail(req) { return req._drix ? req._drix.email : null; }
+function sessionEntitled(req) { return !!(req._drix && drixAuth.isEntitled({ paid: req._drix.paid, entitlements: req._drix.entitlements })); }
 
 // â”€â”€â”€ EMAIL VALIDATION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function validateBusinessEmail(emailRaw) {
@@ -550,24 +496,8 @@ function validateBusinessEmail(emailRaw) {
 // ─── PASSWORD RESET (the only flow that emails — sign-in/up never wait on email) ──
 // Token = HMAC-signed { email, exp, pw } where pw is a fragment of the CURRENT
 // password hash. Changing the password invalidates outstanding reset links.
-function makeResetToken(email, currentHash) {
-  const pw = crypto.createHash('sha256').update(String(currentHash || 'none')).digest('hex').slice(0, 16);
-  const payload = Buffer.from(JSON.stringify({ email, exp: Date.now() + RESET_TTL_MS, pw })).toString('base64url');
-  return `${payload}.${sign(payload)}`;
-}
-async function verifyResetToken(token) {
-  if (!token || token.indexOf('.') < 0) return null;
-  const [payload, sig] = String(token).split('.');
-  if (sig !== sign(payload)) return null;
-  try {
-    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
-    if (!data.email || !data.exp || Date.now() > data.exp) return null;
-    const currentHash = await getPasswordHash(data.email);
-    const pw = crypto.createHash('sha256').update(String(currentHash || 'none')).digest('hex').slice(0, 16);
-    if (pw !== data.pw) return null; // password changed since the link was issued
-    return data.email;
-  } catch { return null; }
-}
+// (Reset-token helpers removed — password reset will be handled by the central
+// auth service. sendResetEmail below is retained, unused, until that exists.)
 
 async function sendResetEmail(email, resetUrl) {
   if (!RESEND_API_KEY) {
@@ -710,6 +640,14 @@ function install(app, deps = {}) {
   try { app.set('trust proxy', true); } catch (_) {}
   initSchema().catch(() => {});
 
+  // Resolve the central-service session ONCE per request (drix-auth caches /v1/me
+  // ~60s per token), and stash it on req._drix so every sync sessionEmail(req)
+  // call site keeps working without becoming async.
+  app.use(async (req, _res, next) => {
+    try { req._drix = await resolveUser(req); } catch (_) { req._drix = null; }
+    next();
+  });
+
   // â”€â”€ CORS for the auth API â”€â”€
   // Lets the DRiX marketing site (getthedrix.com) call /api/auth/* with the
   // session cookie. Only echoes back origins on the allowlist; handles the
@@ -729,28 +667,8 @@ function install(app, deps = {}) {
 
   // Stripe webhook needs the RAW body â€” register BEFORE the JSON gate matters.
   // (server.js mounts express.json globally; we capture raw just for this path.)
-  const express = require('express');
-  app.post('/api/stripe/webhook', express.raw({ type: '*/*' }), async (req, res) => {
-    const raw = req.body instanceof Buffer ? req.body.toString('utf8') : JSON.stringify(req.body || {});
-    if (!verifyStripeSig(raw, req.headers['stripe-signature'] || '')) return res.status(400).send('bad signature');
-    let evt; try { evt = JSON.parse(raw); } catch { return res.status(400).send('bad json'); }
-    if (evt.type === 'checkout.session.completed') {
-      const s = evt.data.object;
-      const email = (s.client_reference_id || s.customer_email || s.metadata?.email || '').toLowerCase();
-      const runs = parseInt(s.metadata?.runs || RUNS_PER_PURCHASE, 10);
-      if (email) {
-        try {
-          await ensureUser(email);
-          await grantRuns(email, runs);
-          const p = pool();
-          if (p) await p.query(`INSERT INTO app_payments (id,email,runs,amount_cents) VALUES ($1,$2,$3,$4) ON CONFLICT (id) DO NOTHING`,
-            [s.id, email, runs, s.amount_total || PURCHASE_PRICE_CENTS]);
-          console.log(`[auth] Stripe payment: +${runs} runs for ${email}`);
-        } catch (e) { console.error('[auth] webhook grant failed:', e.message); }
-      }
-    }
-    res.json({ received: true });
-  });
+  // Stripe lives in the central auth service now — it owns the single webhook
+  // and flips the user's entitlement. DRiX reads that via /v1/me. No local webhook.
 
   // ── Auth API (email + password — instant access, no email round-trip) ──
 
@@ -765,13 +683,13 @@ function install(app, deps = {}) {
       return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LEN} characters.` });
     }
     try {
-      const existingHash = await getPasswordHash(v.email);
-      if (existingHash) {
-        return res.status(409).json({ error: 'An account with this email already exists. Sign in instead.', code: 'ACCOUNT_EXISTS' });
+      const r = await drixAuth.signup(v.email, password);
+      if (!r.ok) {
+        if (r.status === 409) return res.status(409).json({ error: 'An account with this email already exists. Sign in instead.', code: 'ACCOUNT_EXISTS' });
+        return res.status(r.status || 400).json({ error: (r.data && r.data.error) || 'Could not create your account. Try again.' });
       }
-      await ensureUser(v.email);
-      await setPassword(v.email, hashPassword(password));
-      setSessionCookie(res, makeToken(v.email));
+      setSessionCookie(res, r.data.session_token);
+      await ensureUser(v.email);            // local metering row (runs), keyed by email
       const u = await getUser(v.email);
 
       // First-time profile + CPP check (best-effort — never blocks signup).
@@ -798,33 +716,15 @@ function install(app, deps = {}) {
 
     if (loginLocked(email)) return res.status(429).json({ error: 'Too many attempts. Try again in 15 minutes.' });
 
-    // Owner bypass: BYPASS_EMAIL signs in with BYPASS_SECRET as the password.
-    if (bypassEnabled() && email === BYPASS_EMAIL && safeEqual(password, BYPASS_SECRET)) {
-      clearLoginFails(email);
-      await ensureUser(email);
-      setSessionCookie(res, makeToken(email));
-      const u = await getUser(email);
-      console.log(`[auth] Owner bypass sign-in: ${email}`);
-      return res.json({ ok: true, email, remaining: Math.max(0, FREE_RUNS + u.runs_granted - u.runs_used) });
-    }
-
     try {
-      const exists = await userExists(email);
-      const hash = exists ? await getPasswordHash(email) : null;
-      if (exists && !hash) {
-        // Legacy email-code account that never set a password.
-        return res.status(400).json({
-          error: 'This account predates passwords. Use "Create account" with this email to set yours — your runs are saved.',
-          code: 'NO_PASSWORD_SET',
-        });
-      }
-      if (!hash || !verifyPassword(password, hash)) {
+      const r = await drixAuth.login(email, password);
+      if (!r.ok) {
         recordLoginFail(email);
         return res.status(400).json({ error: 'Incorrect email or password.' });
       }
       clearLoginFails(email);
-      await ensureUser(email); // bumps last_seen
-      setSessionCookie(res, makeToken(email));
+      setSessionCookie(res, r.data.session_token);
+      await ensureUser(email); // ensure local metering row exists
       const u = await getUser(email);
       res.json({ ok: true, email, remaining: Math.max(0, FREE_RUNS + u.runs_granted - u.runs_used) });
     } catch (e) { console.error('[auth] login error:', e.message); res.status(500).json({ error: 'Sign-in failed. Try again.' }); }
@@ -832,56 +732,38 @@ function install(app, deps = {}) {
 
   // FORGOT PASSWORD: emails a reset link (the one place email speed doesn't gate access).
   // Always responds ok so the endpoint can't be used to probe which emails have accounts.
-  app.post('/api/auth/forgot-password', async (req, res) => {
-    const email = String(req.body?.email || '').trim().toLowerCase();
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: 'Enter a valid email address.' });
-    try {
-      const exists = await userExists(email);
-      if (exists) {
-        const currentHash = await getPasswordHash(email);
-        const token = makeResetToken(email, currentHash);
-        const reqBase = `${req.protocol}://${req.get('host')}`;
-        const baseUrl = (APP_URL && !/localhost|127\.0\.0\.1/.test(APP_URL)) ? APP_URL : reqBase;
-        const resetUrl = `${baseUrl}/account?reset=${encodeURIComponent(token)}`;
-        const sent = await sendResetEmail(email, resetUrl);
-        if (sent.devLink) return res.json({ ok: true, devLink: sent.devLink });
-      }
-      res.json({ ok: true });
-    } catch (e) { console.error('[auth] forgot-password error:', e.message); res.json({ ok: true }); }
+  // PASSWORD RESET: handled by the central DRiX auth service, which doesn't expose
+  // a reset endpoint yet. Respond gracefully (never leak which emails exist) until
+  // it's added centrally — then these proxy through to the service.
+  app.post('/api/auth/forgot-password', async (_req, res) => {
+    res.json({ ok: true, notice: 'Password reset is coming soon. If you are locked out, contact support.' });
+  });
+  app.post('/api/auth/reset-password', async (_req, res) => {
+    res.status(503).json({ error: 'Password reset is not available yet. Contact support.', code: 'RESET_UNAVAILABLE' });
   });
 
-  // RESET PASSWORD: token from the email link + new password. Signs the user in.
-  app.post('/api/auth/reset-password', async (req, res) => {
-    const password = String(req.body?.password || '');
-    if (password.length < MIN_PASSWORD_LEN) {
-      return res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LEN} characters.` });
-    }
-    try {
-      const email = await verifyResetToken(req.body?.token);
-      if (!email) return res.status(400).json({ error: 'This reset link is invalid or has expired. Request a new one.' });
-      await ensureUser(email);
-      await setPassword(email, hashPassword(password));
-      clearLoginFails(email);
-      setSessionCookie(res, makeToken(email));
-      const u = await getUser(email);
-      console.log(`[auth] Password reset: ${email}`);
-      res.json({ ok: true, email, remaining: Math.max(0, FREE_RUNS + u.runs_granted - u.runs_used) });
-    } catch (e) { console.error('[auth] reset-password error:', e.message); res.status(500).json({ error: 'Could not reset your password. Try again.' }); }
+  app.post('/api/auth/logout', async (req, res) => {
+    try { await drixAuth.logout(drixAuth.readToken(req)); } catch (_) {}
+    clearSessionCookie(res);
+    res.json({ ok: true });
   });
-
-  app.post('/api/auth/logout', (req, res) => { clearSessionCookie(res); res.json({ ok: true }); });
 
   app.get('/api/auth/me', async (req, res) => {
     const email = sessionEmail(req);
     if (!email) return res.status(401).json({ error: 'Not signed in' });
+    await ensureUser(email);
     const u = await getUser(email);
     const prof = await getProfile(email).catch(() => ({}));
+    const entitled = sessionEntitled(req); // paid for DRiX in the central service
+    const paymentsEnabled = !!DRIX_PRICE_ID && !!process.env.WINTECH_PAY_APP_KEY;
     res.json({
       email, free: FREE_RUNS, runs_used: u.runs_used, runs_granted: u.runs_granted,
-      remaining: Math.max(0, FREE_RUNS + u.runs_granted - u.runs_used),
-      redeemed: u.redeemed, stripe_enabled: stripeEnabled(),
-      license_enabled: licenseConfigured(), buy_url: BUY_URL, runs_per_purchase: RUNS_PER_PURCHASE,
-      is_admin: isAdmin(email), paypal_enabled: paypalEnabled(),
+      remaining: entitled ? null : Math.max(0, FREE_RUNS + u.runs_granted - u.runs_used),
+      unlimited: entitled, paid: entitled,
+      redeemed: u.redeemed,
+      stripe_enabled: paymentsEnabled, license_enabled: licenseConfigured(),
+      buy_url: BUY_URL, runs_per_purchase: RUNS_PER_PURCHASE, paypal_enabled: false,
+      is_admin: isAdmin(email),
       partner_url: prof.partner_url || null,
       cpp_status: prof.cpp_status || null,
       cpp_available: prof.cpp_status === 'available' || prof.cpp_status === 'uploaded',
@@ -899,49 +781,27 @@ function install(app, deps = {}) {
   });
 
   app.post('/api/auth/checkout', async (req, res) => {
-    const email = sessionEmail(req);
-    if (!email) return res.status(401).json({ error: 'Not signed in' });
-    if (!stripeEnabled()) return res.status(503).json({ error: 'Payments are not configured yet. Set STRIPE_SECRET_KEY in Railway.' });
-    try {
-      // Use the real request host (correct on Railway). Only fall back to APP_URL
-      // if it's a real public URL, never localhost.
-      const reqBase = `${req.protocol}://${req.get('host')}`;
-      const baseUrl = (APP_URL && !/localhost|127\.0\.0\.1/.test(APP_URL)) ? APP_URL : reqBase;
-      const url = await stripeCreateCheckout(email, baseUrl);
-      res.json({ ok: true, url });
-    } catch (e) { res.status(502).json({ error: e.message || 'Could not start checkout.' }); }
+    const cu = sessionUser(req);
+    if (!cu) return res.status(401).json({ error: 'Not signed in' });
+    if (!DRIX_PRICE_ID || !process.env.WINTECH_PAY_APP_KEY) {
+      return res.status(503).json({ error: 'Payments are not configured yet. Set DRIX_PRICE_ID and WINTECH_PAY_APP_KEY in Railway.' });
+    }
+    // Hard-link the order to the buyer's account via their session token, so the
+    // central service credits the right user even if email matching fails.
+    const base = `${req.protocol}://${req.get('host')}`;
+    const r = await drixAuth.checkout({
+      priceId: DRIX_PRICE_ID,
+      userToken: cu.token,
+      successUrl: `${base}/account?paid=1`,
+      cancelUrl: `${base}/account?canceled=1`,
+      metadata: { app: 'drix-ready-leads', email: cu.email },
+    });
+    if (!r.ok) return res.status(502).json({ error: r.error || 'Could not start checkout.' });
+    res.json({ ok: true, url: r.url });
   });
 
   // â”€â”€ PayPal: fully automated buy â†’ auto-credit (no webhook) â”€â”€
-  app.post('/api/auth/checkout-paypal', async (req, res) => {
-    const email = sessionEmail(req);
-    if (!email) return res.status(401).json({ error: 'Not signed in' });
-    if (!paypalEnabled()) return res.status(503).json({ error: 'PayPal is not configured yet. Set PAYPAL_CLIENT_ID and PAYPAL_SECRET in Railway.' });
-    try {
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
-      const order = await paypalCreateOrder(email, baseUrl);
-      if (!order.approveUrl) throw new Error('No approval URL from PayPal.');
-      res.json({ ok: true, url: order.approveUrl });
-    } catch (e) { res.status(502).json({ error: e.message || 'Could not start checkout.' }); }
-  });
-
-  // Buyer is redirected back here from PayPal after approving. Capture + credit.
-  app.get('/api/pay/paypal/capture', async (req, res) => {
-    const orderId = req.query.token; // PayPal returns ?token=<orderId>
-    if (!orderId) return res.redirect('/account?error=payment');
-    try {
-      const cap = await paypalCapture(String(orderId));
-      if (!cap.ok || !cap.email) return res.redirect('/account?error=payment');
-      // Idempotent credit: only grant once per capture id.
-      const claimed = await claimGlobalCode(`paypal:${cap.captureId}`, cap.email, cap.runs, 'paypal');
-      if (claimed) {
-        await ensureUser(cap.email);
-        await grantRuns(cap.email, cap.runs);
-        console.log(`[auth] PayPal: +${cap.runs} runs for ${cap.email} (capture ${cap.captureId})`);
-      }
-      return res.redirect('/account?paid=1');
-    } catch (e) { console.error('[auth] PayPal capture error:', e.message); return res.redirect('/account?error=payment'); }
-  });
+  // PayPal removed — payments go through the central auth service (Stripe only).
 
   // â”€â”€ Admin: mint prepaid codes â”€â”€
   function adminOK(req) {
@@ -1015,8 +875,11 @@ function install(app, deps = {}) {
   // â”€â”€ THE GATE â”€â”€
   app.use((req, res, next) => {
     const p = req.path;
-    // Always-open paths
-    if (p.startsWith('/api/auth/') || p.startsWith('/api/pay/') || p === '/api/stripe/webhook' || p === '/healthz') return next();
+    // Always-open paths (auth API + health). req._drix is already resolved.
+    // The vendor dashboard self-governs via its own requireDashAuth, so let its
+    // API and SPA routes through this gate untouched.
+    if (p.startsWith('/api/auth/') || p === '/healthz'
+        || p.startsWith('/api/dashboard/') || p.startsWith('/dashboard')) return next();
 
     const email = sessionEmail(req);
 
@@ -1025,12 +888,14 @@ function install(app, deps = {}) {
       req.userEmail = email;
       const key = `${req.method} ${p}`;
       if (METERED_ROUTES.has(key)) {
-        return consumeRun(email).then((u) => {
+        const entitled = sessionEntitled(req); // paid for DRiX → unlimited
+        return consumeRun(email, entitled).then((u) => {
           if (!u) return res.status(402).json({
             error: 'You are out of runs. Redeem a code or buy more to continue.',
             code: 'PAYMENT_REQUIRED',
           });
-          res.set('X-Runs-Remaining', String(Math.max(0, FREE_RUNS + u.runs_granted - u.runs_used)));
+          res.set('X-Runs-Remaining', u.unlimited ? 'unlimited'
+            : String(Math.max(0, FREE_RUNS + u.runs_granted - u.runs_used)));
           next();
         }).catch((e) => { console.error('[auth] consumeRun error:', e.message); res.status(500).json({ error: 'Metering error' }); });
       }

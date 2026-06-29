@@ -4710,6 +4710,11 @@ for (const [route, file] of Object.entries(STANDALONE_PAGES)) {
   });
 }
 
+// ─── VENDOR DASHBOARD ────────────────────────────────────────────────────────
+// Mounts /api/dashboard/* (vendor/manager/rep portal) + /dashboard SPA route.
+// Shares the same Postgres pool and the central DRiX auth (drix_session cookie).
+require('./dashboard-init')(app, { db, ingestOne, extractPainPoints, brain, normUrl });
+
 // ─── SPA FALLBACK ────────────────────────────────────────────────────────────
 // For any non-API routes that don't match a static file, serve the React app
 const fs = require('fs');
