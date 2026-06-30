@@ -1,7 +1,7 @@
 {
   "name": "tde-demo",
   "version": "1.0.0",
-  "description": "TDE demo \u2014 ingest and reconstruct for AIAIVN meeting",
+  "description": "TDE demo — ingest and reconstruct for AIAIVN meeting",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@microsoft/clarity": "^1.0.2",
+    "csv-parse": "^5.6.0",
     "docx": "^9.5.0",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
